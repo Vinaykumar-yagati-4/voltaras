@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        ============================================================
+        PARENT POM
+        ============================================================
+        We inherit from spring-boot-starter-parent (3.5.5), which
+        gives us pre-configured dependency versions, plugin defaults,
+        and Spring Boot's auto-configuration. This avoids manually
+        specifying versions for most Spring Boot dependencies.
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.voltaras</groupId>
+    <artifactId>auth-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+
+    <name>VOLTARAS Auth Service</name>
+    <description>Authentication and Authorization Service — handles user registration, login, JWT generation/validation, and password management for the VOLTARAS platform</description>
+
+    <properties>
+        <!-- Java 25 for modern language features -->
+        <java.version>25</java.version>
+
+        <!-- Spring Cloud 2025.0.3 matches Spring Boot 3.5.5 -->
+        <spring-cloud.version>2025.0.3</spring-cloud.version>
+
+        <!-- Lombok 1.18.46 reduces boilerplate (getters, setters, constructors) -->
+        <lombok.version>1.18.46</lombok.version>
+
+        <!-- JJWT 0.12.6 for JWT token generation and validation -->
+        <jjwt.version>0.12.6</jjwt.version>
+    </properties>
+
+    <!--
+        ============================================================
+        DEPENDENCY MANAGEMENT
+        ============================================================
+        Spring Cloud BOM imports cloud dependency versions so we
+        don't need to specify versions for cloud starters.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+        <!--
+            Spring Boot Starters
+            ====================
+        -->
+
+        <!-- spring-boot-starter-web: REST API support (Tomcat, Jackson, MVC) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- spring-boot-starter-data-jpa: JPA/Hibernate ORM for database access -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- spring-boot-starter-security: Authentication & authorization framework -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- spring-boot-starter-validation: Jakarta Bean Validation (@NotBlank, @Email, etc.) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--
+            Spring Cloud Starters
+            =====================
+        -->
+
+        <!-- Eureka Client: registers this service with Eureka Server -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <!--
+            Database
+            ========
+        -->
+        <!-- MySQL Connector: JDBC driver for MySQL 8.x -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            JWT (JSON Web Token)
+            ====================
+            JJWT library for creating & verifying JWT tokens
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            Developer Tools
+            ===============
+        -->
+        <!-- Lombok: @Data, @Builder, @RequiredArgsConstructor, etc. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- DevTools: automatic restart during development -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Actuator: health checks & monitoring
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Testing
+            =======
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Security Test: @WithMockUser, SecurityMockMvcRequestPostProcessors -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <!-- Final JAR name (without version suffix) -->
+        <finalName>auth-service</finalName>
+
+        <plugins>
+
+            <!--
+                Maven Compiler Plugin
+                Configures Java 25 release + Lombok annotation processor
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+                    <release>${java.version}</release>
+
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+
+                </configuration>
+
+            </plugin>
+
+            <!--
+                Spring Boot Maven Plugin
+                Packages the application as an executable JAR with embedded Tomcat
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+
+                <configuration>
+                    <excludes>
+                        <!-- Exclude Lombok from the final JAR -->
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
