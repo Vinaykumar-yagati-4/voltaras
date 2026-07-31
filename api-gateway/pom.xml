@@ -18,11 +18,15 @@
     <version>0.0.1-SNAPSHOT</version>
 
     <name>VOLTARAS API Gateway</name>
-    <description>API Gateway for VOLTARAS microservices — single entry point for all client requests with dynamic routing via Spring Cloud Gateway and Eureka service discovery</description>
+
+    <description>
+        API Gateway for VOLTARAS microservices
+    </description>
 
     <properties>
         <java.version>25</java.version>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
+        <jjwt.version>0.13.0</jjwt.version>
     </properties>
 
     <dependencyManagement>
@@ -51,10 +55,33 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
-        <!-- Actuator for health checks and monitoring -->
+        <!-- Actuator -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- JWT API -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+
+        <!-- JWT implementation -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Jackson support for JWT -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Testing -->
@@ -78,7 +105,6 @@
                 <configuration>
                     <release>${java.version}</release>
                 </configuration>
-
             </plugin>
 
             <plugin>
