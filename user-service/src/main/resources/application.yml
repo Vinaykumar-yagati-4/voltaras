@@ -1,13 +1,12 @@
-
 server:
-  port: 8081
+  port: 8082
 
 spring:
   application:
-    name: auth-service
+    name: user-service
 
   datasource:
-    url: jdbc:mysql://localhost:3306/auth_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:3306/user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -15,16 +14,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-
-app:
-  jwt:
-    secret: 2A4B6D8F0C1E3G5H7I9K2M4N6P8Q0R2T4V6W8X0Y2Z4A6B8C0D2E4F6G8H0J
-    expiration: 86400000
 
 eureka:
   client:
@@ -32,6 +26,7 @@ eureka:
     fetch-registry: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
   instance:
     hostname: localhost
     prefer-ip-address: true
@@ -41,6 +36,7 @@ management:
     web:
       exposure:
         include: health,info
+
   endpoint:
     health:
       show-details: always
@@ -49,4 +45,4 @@ logging:
   level:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
-    com.voltaras.authservice: DEBUG
+    com.voltaras.userservice: DEBUG
