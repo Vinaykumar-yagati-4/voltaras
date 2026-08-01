@@ -1,0 +1,927 @@
+{
+  "info": {
+    "_postman_id": "voltaras-meter-reading-2026-0001",
+    "name": "VOLTARAS - Meter Reading Service",
+    "description": "API tests for the VOLTARAS Meter Reading Service.\n\nSETUP\n1. Start Eureka, Auth, User, Meter Reading, and the API Gateway (http://localhost:8080).\n2. Register a CONSUMER and an ADMIN user via POST /api/auth/register (public route) — the auth service only seeds roles, not users.\n3. Open the Authentication folder and replace the placeholder email/password in both login requests with your registered accounts.\n4. Run 'Login (Consumer)' and 'Login (Admin)' first — the JWT is stored automatically in the collection variables accessToken / adminAccessToken.\n\nDo NOT add X-User-Id / X-User-Email / X-User-Role headers manually — the API Gateway validates the JWT and injects them automatically.\n\nFolders: Authentication · Consumer Meter Readings · Admin Meter Readings · Negative Tests\n\nEvery folder is self-contained and can be run independently (after Authentication): the Admin folder starts with a setup request that creates a fresh reading, and the negative tests create and verify their own readings via chained requests, so no cross-request ordering is required. Meter numbers use Postman dynamic variables ({{$guid}} / Date.now()) so the collection can be re-run without duplicate-reading conflicts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" },
+    { "key": "readingId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Consumer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('JWT token is present', function () {",
+                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.role).to.eql('CONSUMER');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('accessToken', jsonData.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"consumer@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('JWT token with ADMIN role is present', function () {",
+                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.role).to.eql('ADMIN');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('adminAccessToken', jsonData.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer Meter Readings",
+      "item": [
+        {
+          "name": "Submit Reading (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Reading ID exists', function () {",
+                  "    pm.expect(jsonData.id).to.not.be.undefined;",
+                  "    pm.collectionVariables.set('readingId', String(jsonData.id));",
+                  "});",
+                  "",
+                  "pm.test('unitsConsumed is calculated correctly (current - previous)', function () {",
+                  "    const expected = (Number(jsonData.currentReading) - Number(jsonData.previousReading)).toFixed(3);",
+                  "    pm.expect(Number(jsonData.unitsConsumed).toFixed(3)).to.eql(expected);",
+                  "});",
+                  "",
+                  "pm.test('Status is SUBMITTED', function () {",
+                  "    pm.expect(jsonData.status).to.eql('SUBMITTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-{{$guid}}\",\n  \"billingMonth\": 7,\n  \"billingYear\": 2026,\n  \"previousReading\": 1250.500,\n  \"currentReading\": 1425.750,\n  \"readingDate\": \"2026-07-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Get My Readings (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Array contains at least one reading', function () {",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me"
+            }
+          }
+        },
+        {
+          "name": "Get My Reading By ID (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Returned reading matches readingId', function () {",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('readingId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me/{{readingId}}"
+            }
+          }
+        },
+        {
+          "name": "Update My Reading (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('unitsConsumed recalculated after update', function () {",
+                  "    const expected = (Number(jsonData.currentReading) - Number(jsonData.previousReading)).toFixed(3);",
+                  "    pm.expect(Number(jsonData.unitsConsumed).toFixed(3)).to.eql(expected);",
+                  "});",
+                  "",
+                  "pm.test('Status stays SUBMITTED', function () {",
+                  "    pm.expect(jsonData.status).to.eql('SUBMITTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"previousReading\": 1425.750,\n  \"currentReading\": 1600.000,\n  \"readingDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me/{{readingId}}"
+            }
+          }
+        },
+        {
+          "name": "Delete My Reading (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Clean confirmation message', function () {",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me/{{readingId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Meter Readings",
+      "item": [
+        {
+          "name": "Setup: Submit Reading for Admin Tests (201)",
+          "description": "Creates a fresh reading so the admin verify/reject tests always have a real reading, regardless of what the consumer folder did.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.collectionVariables.set('readingId', String(jsonData.id));",
+                  "",
+                  "pm.test('Reading created for admin tests', function () {",
+                  "    pm.expect(jsonData.id).to.not.be.undefined;",
+                  "    pm.expect(jsonData.status).to.eql('SUBMITTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-ADMIN-{{$guid}}\",\n  \"billingMonth\": 8,\n  \"billingYear\": 2026,\n  \"previousReading\": 1000.000,\n  \"currentReading\": 1150.250,\n  \"readingDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Get All Readings (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin"
+            }
+          }
+        },
+        {
+          "name": "Get All Readings Filtered by Status (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('All returned readings are SUBMITTED', function () {",
+                  "    jsonData.forEach(function (reading) {",
+                  "        pm.expect(reading.status).to.eql('SUBMITTED');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin?status=SUBMITTED"
+            }
+          }
+        },
+        {
+          "name": "Verify Reading (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Status is VERIFIED', function () {",
+                  "    pm.expect(jsonData.status).to.eql('VERIFIED');",
+                  "});",
+                  "",
+                  "pm.test('verifiedBy and verifiedAt are stamped', function () {",
+                  "    pm.expect(jsonData.verifiedBy).to.not.be.undefined;",
+                  "    pm.expect(jsonData.verifiedAt).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin/{{readingId}}/verify"
+            }
+          }
+        },
+        {
+          "name": "Reject Reading (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Status is REJECTED with remarks', function () {",
+                  "    pm.expect(jsonData.status).to.eql('REJECTED');",
+                  "    pm.expect(jsonData.remarks).to.include('threshold');",
+                  "});",
+                  "",
+                  "pm.test('verifiedBy and verifiedAt are stamped', function () {",
+                  "    pm.expect(jsonData.verifiedBy).to.not.be.undefined;",
+                  "    pm.expect(jsonData.verifiedAt).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"Meter reading exceeds expected consumption threshold\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin/{{readingId}}/reject"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "Missing JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Error message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me"
+            }
+          }
+        },
+        {
+          "name": "Invalid JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer invalid-token" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me"
+            }
+          }
+        },
+        {
+          "name": "Expired JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.expired.tampered" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me"
+            }
+          }
+        },
+        {
+          "name": "Missing Required Fields (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is VALIDATION_ERROR with field details', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    pm.expect(jsonData.error.details.length).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Invalid Billing Month (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Field error for billingMonth', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    const field = jsonData.error.details.find(function (f) { return f.field === 'billingMonth'; });",
+                  "    pm.expect(field).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-1001\",\n  \"billingMonth\": 13,\n  \"billingYear\": 2026,\n  \"previousReading\": 1250.500,\n  \"currentReading\": 1425.750,\n  \"readingDate\": \"2026-07-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Negative Meter Reading (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Field error for previousReading', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const field = jsonData.error.details.find(function (f) { return f.field === 'previousReading'; });",
+                  "    pm.expect(field).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-1001\",\n  \"billingMonth\": 7,\n  \"billingYear\": 2026,\n  \"previousReading\": -5,\n  \"currentReading\": 1425.750,\n  \"readingDate\": \"2026-07-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Current Less Than Previous (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Business rule message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('BAD_REQUEST');",
+                  "    pm.expect(jsonData.error.message).to.include('cannot be less than');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-1001\",\n  \"billingMonth\": 7,\n  \"billingYear\": 2026,\n  \"previousReading\": 2000.000,\n  \"currentReading\": 1000.000,\n  \"readingDate\": \"2026-07-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Duplicate Reading (409)",
+          "description": "Self-contained: this request submits a reading with a unique meter number, then the test script submits the identical body twice (dynamic meter number) and asserts the second submission returns 409 DUPLICATE_RESOURCE.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const baseUrl = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('accessToken');",
+                  "const duplicateBody = {",
+                  "    meterNumber: 'MTR-DUP-' + Date.now(),",
+                  "    billingMonth: 8,",
+                  "    billingYear: 2026,",
+                  "    previousReading: 1000.000,",
+                  "    currentReading: 1100.000,",
+                  "    readingDate: '2026-08-01'",
+                  "};",
+                  "",
+                  "const submit = {",
+                  "    url: baseUrl + '/api/meter-readings',",
+                  "    method: 'POST',",
+                  "    header: {",
+                  "        'Authorization': 'Bearer ' + token,",
+                  "        'Content-Type': 'application/json'",
+                  "    },",
+                  "    body: { mode: 'raw', raw: JSON.stringify(duplicateBody) }",
+                  "};",
+                  "",
+                  "pm.sendRequest(submit, function (err, res1) {",
+                  "    pm.expect(err).to.be.null;",
+                  "    pm.expect(res1.code).to.eql(201);",
+                  "",
+                  "    pm.sendRequest(submit, function (err2, res2) {",
+                  "        pm.expect(err2).to.be.null;",
+                  "        pm.test('Second submission is 409 Conflict', function () {",
+                  "            pm.expect(res2.code).to.eql(409);",
+                  "        });",
+                  "        pm.test('Error message contains duplicate', function () {",
+                  "            const jsonData = res2.json();",
+                  "            pm.expect(jsonData.error.code).to.eql('DUPLICATE_RESOURCE');",
+                  "            pm.expect(jsonData.error.message).to.include('already exists');",
+                  "        });",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-DUP-{{$guid}}\",\n  \"billingMonth\": 8,\n  \"billingYear\": 2026,\n  \"previousReading\": 1000.000,\n  \"currentReading\": 1100.000,\n  \"readingDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Get Another User's Reading (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () { pm.response.to.have.status(404); });",
+                  "pm.test('Error code is RESOURCE_NOT_FOUND', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/me/999999"
+            }
+          }
+        },
+        {
+          "name": "Update Verified Reading (403)",
+          "description": "Self-contained: this request submits a fresh reading (unique meter number), then the test script verifies it as ADMIN and attempts to update it as the consumer, asserting the update fails with 403 FORBIDDEN_OPERATION.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const baseUrl = pm.collectionVariables.get('baseUrl');",
+                  "const consumerToken = pm.collectionVariables.get('accessToken');",
+                  "const adminToken = pm.collectionVariables.get('adminAccessToken');",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "const readingId = jsonData.id;",
+                  "",
+                  "pm.sendRequest({",
+                  "    url: baseUrl + '/api/meter-readings/admin/' + readingId + '/verify',",
+                  "    method: 'PATCH',",
+                  "    header: { 'Authorization': 'Bearer ' + adminToken }",
+                  "}, function (err2, verifyRes) {",
+                  "    pm.expect(err2).to.be.null;",
+                  "    pm.expect(verifyRes.code).to.eql(200);",
+                  "",
+                  "    pm.sendRequest({",
+                  "        url: baseUrl + '/api/meter-readings/me/' + readingId,",
+                  "        method: 'PUT',",
+                  "        header: {",
+                  "            'Authorization': 'Bearer ' + consumerToken,",
+                  "            'Content-Type': 'application/json'",
+                  "        },",
+                  "        body: { mode: 'raw', raw: JSON.stringify({ previousReading: 1100.000, currentReading: 1300.000, readingDate: '2026-08-02' }) }",
+                  "    }, function (err3, putRes) {",
+                  "        pm.expect(err3).to.be.null;",
+                  "        pm.test('Update of verified reading is 403 Forbidden', function () {",
+                  "            pm.expect(putRes.code).to.eql(403);",
+                  "        });",
+                  "        pm.test('Error code is FORBIDDEN_OPERATION', function () {",
+                  "            const jsonData = putRes.json();",
+                  "            pm.expect(jsonData.error.code).to.eql('FORBIDDEN_OPERATION');",
+                  "            pm.expect(jsonData.error.message).to.include('cannot be modified');",
+                  "        });",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-NEG-{{$guid}}\",\n  \"billingMonth\": 8,\n  \"billingYear\": 2026,\n  \"previousReading\": 1000.000,\n  \"currentReading\": 1100.000,\n  \"readingDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Delete Verified Reading (403)",
+          "description": "Self-contained: this request submits a fresh reading (unique meter number), then the test script verifies it as ADMIN and attempts to delete it as the consumer, asserting the delete fails with 403 FORBIDDEN_OPERATION.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const baseUrl = pm.collectionVariables.get('baseUrl');",
+                  "const consumerToken = pm.collectionVariables.get('accessToken');",
+                  "const adminToken = pm.collectionVariables.get('adminAccessToken');",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "const readingId = jsonData.id;",
+                  "",
+                  "pm.sendRequest({",
+                  "    url: baseUrl + '/api/meter-readings/admin/' + readingId + '/verify',",
+                  "    method: 'PATCH',",
+                  "    header: { 'Authorization': 'Bearer ' + adminToken }",
+                  "}, function (err2, verifyRes) {",
+                  "    pm.expect(err2).to.be.null;",
+                  "    pm.expect(verifyRes.code).to.eql(200);",
+                  "",
+                  "    pm.sendRequest({",
+                  "        url: baseUrl + '/api/meter-readings/me/' + readingId,",
+                  "        method: 'DELETE',",
+                  "        header: { 'Authorization': 'Bearer ' + consumerToken }",
+                  "    }, function (err3, delRes) {",
+                  "        pm.expect(err3).to.be.null;",
+                  "        pm.test('Delete of verified reading is 403 Forbidden', function () {",
+                  "            pm.expect(delRes.code).to.eql(403);",
+                  "        });",
+                  "        pm.test('Error code is FORBIDDEN_OPERATION', function () {",
+                  "            const jsonData = delRes.json();",
+                  "            pm.expect(jsonData.error.code).to.eql('FORBIDDEN_OPERATION');",
+                  "        });",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterNumber\": \"MTR-NEG-{{$guid}}\",\n  \"billingMonth\": 8,\n  \"billingYear\": 2026,\n  \"previousReading\": 1000.000,\n  \"currentReading\": 1100.000,\n  \"readingDate\": \"2026-08-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings"
+            }
+          }
+        },
+        {
+          "name": "Consumer Attempts Admin Endpoint (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 Forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error code is FORBIDDEN_OPERATION', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('FORBIDDEN_OPERATION');",
+                  "    pm.expect(jsonData.error.message).to.include('Only ADMIN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin"
+            }
+          }
+        },
+        {
+          "name": "Resource Not Found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () { pm.response.to.have.status(404); });",
+                  "pm.test('Error message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.message).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meter-readings/admin/999999/verify"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
