@@ -21,6 +21,11 @@ spring:
               predicates:
                 - Path=/api/users/**
 
+            - id: meter-reading-service
+              uri: lb://METER-READING-SERVICE
+              predicates:
+                - Path=/api/meter-readings/**
+
 eureka:
   client:
     register-with-eureka: true
@@ -29,6 +34,7 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
   instance:
+    hostname: localhost
     prefer-ip-address: true
 
 management:
@@ -37,6 +43,15 @@ management:
       exposure:
         include: health,info
 
+  endpoint:
+    health:
+      show-details: always
+
 app:
   jwt:
-    secret: 2A4B6D8F0C1E3G5H7I9K2M4N6P8Q0R2T4V6W8X0Y2Z4A6B8C0D2E4F6G8H0J
+    secret: ${JWT_SECRET}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.voltaras.apigateway: DEBUG
