@@ -27,7 +27,7 @@ Each service is the **sole owner** and **sole writer** of its database. No other
 |---|---|---|
 | Auth Service | `auth_db` | Credentials, roles, authentication tokens |
 | User Service | `user_db` | Consumer profiles, address, account details |
-| Meter Service | `meter_db` | Meter registrations, readings, status |
+| Meter Reading Service | `meter_db` | Meter registrations, readings, status |
 | Billing Service | `billing_db` | Tariff plans, slabs, bills, line items |
 | Payment Service | `payment_db` | Payment transactions, methods, references |
 | Complaint Service | `complaint_db` | Complaints, categories, comments, status history |
@@ -52,7 +52,7 @@ Service A (needs data) → REST API call → Service B (owns data) → queries i
 | Flow | Caller | API Provider | Data Requested |
 |---|---|---|---|
 | Registration | Auth Service | User Service | Create user profile |
-| Bill Calculation | Billing Service | Meter Service | Fetch readings for date range |
+| Bill Calculation | Billing Service | Meter Reading Service | Fetch readings for date range |
 | Bill Status Update | Payment Service | Billing Service | Mark bill as PAID |
 | Notification Trigger | Notification Service | User Service | Fetch consumer details |
 | Complaint Notification | Complaint Service | Notification Service | Trigger notification on status change |
@@ -72,7 +72,7 @@ Service A (needs data) → REST API call → Service B (owns data) → queries i
 |---|---|---|---|---|
 | 1 | **Auth Service** | `auth_db` | Stores authentication credentials, roles, and JWT-related data. Does not store profile details — only what is needed for login/register. | `users`, `roles`, `user_roles`, `refresh_tokens` (future) |
 | 2 | **User Service** | `user_db` | Stores consumer profile information, addresses, and electricity connection/account details. | `consumer_profiles`, `consumer_addresses` |
-| 3 | **Meter Service** | `meter_db` | Stores meter registrations, meter-to-consumer assignments, and all meter readings submitted by consumers. | `meters`, `meter_assignments`, `meter_readings` |
+| 3 | **Meter Reading Service** | `meter_db` | Stores meter registrations, meter-to-consumer assignments, and all meter readings submitted by consumers. | `meters`, `meter_assignments`, `meter_readings` |
 | 4 | **Billing Service** | `billing_db` | Stores tariff plans, tariff slabs, generated daily bills, monthly bills, and bill line items with slab-wise breakdown. | `tariff_plans`, `tariff_slabs`, `daily_bills`, `monthly_bills`, `bill_line_items` |
 | 5 | **Payment Service** | `payment_db` | Stores payment transactions, payment methods, and payment status. No real payment gateway integration in V1. | `payments`, `payment_methods` |
 | 6 | **Complaint Service** | `complaint_db` | Stores consumer complaints, categories, resolution comments, and status change history. | `complaints`, `complaint_categories`, `complaint_comments`, `complaint_status_history` |
@@ -1205,7 +1205,7 @@ CREATE TABLE consumer_addresses (
 
 ### 6.1 Purpose
 
-The `meter_db` database is owned by the **Meter Service** and stores all meter-related data including physical meter records, meter-to-consumer assignments over time, and all submitted meter readings. This is the **consumption data** database.
+The `meter_db` database is owned by the **Meter Reading Service** and stores all meter-related data including physical meter records, meter-to-consumer assignments over time, and all submitted meter readings. This is the **consumption data** database.
 
 **Key design rules:**
 - A `meters` record represents a physical electricity meter installed at a location.
@@ -1467,7 +1467,7 @@ This enforces the business rule: **one reading per meter per day**.
 -- ============================================================
 -- DATABASE: meter_db
 -- PURPOSE:  Meter registry, assignments, and daily readings
--- OWNER:    Meter Service
+-- OWNER:    Meter Reading Service
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS meter_db
@@ -2873,7 +2873,7 @@ The following references cross service boundaries and are **NOT enforced as data
 | `meter_db` | `meter_readings.submitted_by` | Auth Service | `auth_db.users.id` | Identify who submitted the reading |
 | `billing_db` | `monthly_bills.consumer_id` | User Service | `user_db.consumer_profiles.id` | Link bill to consumer |
 | `billing_db` | `monthly_bills.generated_by` | Auth Service | `auth_db.users.id` | Identify admin who generated the bill |
-| `billing_db` | `daily_bills.meter_reading_id` | Meter Service | `meter_db.meter_readings.id` | Link daily bill to reading |
+| `billing_db` | `daily_bills.meter_reading_id` | Meter Reading Service | `meter_db.meter_readings.id` | Link daily bill to reading |
 | `billing_db` | `daily_bills.consumer_id` | User Service | `user_db.consumer_profiles.id` | Link daily bill to consumer |
 | `payment_db` | `payments.bill_id` | Billing Service | `billing_db.monthly_bills.id` | Link payment to bill |
 | `payment_db` | `payments.consumer_id` | User Service | `user_db.consumer_profiles.id` | Link payment to consumer |

@@ -100,7 +100,7 @@ Provide a lightweight, implementation-ready roadmap that sequences every major m
 | Field | Detail |
 |---|---|
 | **Purpose** | Consumer meter reading submission, validation, and history |
-| **Main deliverables** | Meter Service with `/api/readings` (POST, GET); validation (reading > previous, no duplicate date); units-consumed calculation; paginated reading history; admin endpoint to view all readings and flag suspicious entries |
+| **Main deliverables** | Meter Reading Service with `/api/readings` (POST, GET); validation (reading > previous, no duplicate date); units-consumed calculation; paginated reading history; admin endpoint to view all readings and flag suspicious entries |
 | **Dependencies** | User Module (consumer existence) |
 | **Branch name** | `feature/backend-meter` |
 | **Acceptance criteria** | Valid reading saves and shows units consumed. Reading value less than previous returns error. Duplicate date returns error. Paginated history returns correct data. Suspicious flagging works. |
@@ -330,7 +330,7 @@ Eureka Server
     └── API Gateway
             ├── Auth Service ─────────────────────────┐
             │       └── User Service                   │
-            │               ├── Meter Service           │
+            │               ├── Meter Reading Service  │
             │               │       └── Billing Service │
             │               │               ├── Tariff (separate) │
             │               │               └── Payment Service   │
@@ -342,7 +342,7 @@ Frontend ──── API Integration Layer ────────────
 
 Lateral Dependencies (service-to-service REST):
   Auth Service    → User Service     (create profile on register)
-  Billing Service → Meter Service    (fetch readings for billing)
+  Billing Service → Meter Reading Service    (fetch readings for billing)
   Billing Service → Tariff Service   (fetch slabs for billing)
   Payment Service → Billing Service  (update bill status)
   Notification    → User Service     (fetch consumer details)

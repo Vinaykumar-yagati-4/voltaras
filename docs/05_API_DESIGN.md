@@ -19,7 +19,7 @@ This document defines the complete REST API surface for all 9 microservices in t
 | 2 | **Eureka Service Registry** | — | — |
 | 3 | **Auth Service** | `/api/auth` | `/api/auth/**` |
 | 4 | **User Service** | `/api/users` | `/api/users/**` |
-| 5 | **Meter Service** | `/api/readings` | `/api/readings/**` |
+| 5 | **Meter Reading Service** | `/api/readings` | `/api/readings/**` |
 | 6 | **Billing Service** | `/api/bills` | `/api/bills/**` |
 | 7 | **Payment Service** | `/api/payments` | `/api/payments/**` |
 | 8 | **Complaint Service** | `/api/complaints` | `/api/complaints/**` |
@@ -55,9 +55,8 @@ This document defines the complete REST API surface for all 9 microservices in t
 
 | Status Code | Usage |
 |---|---|
-| `200 OK` | Successful GET, PUT, PATCH |
+| `200 OK` | Successful GET, PUT, PATCH, and business-resource DELETE (DELETE returns `{ "message": "Resource deleted successfully" }`) |
 | `201 Created` | Successful POST (resource created) |
-| `204 No Content` | Successful DELETE (no response body) |
 | `400 Bad Request` | Validation error, missing/invalid fields |
 | `401 Unauthorized` | Missing or invalid JWT token |
 | `403 Forbidden` | Authenticated but insufficient role/permissions |
@@ -65,6 +64,8 @@ This document defines the complete REST API surface for all 9 microservices in t
 | `409 Conflict` | Duplicate resource (email already exists, duplicate reading) |
 | `422 Unprocessable Entity` | Business rule violation (reading < previous, overlapping slabs) |
 | `500 Internal Server Error` | Unexpected server error |
+
+**DELETE response standard:** Business-resource DELETE APIs return `200 OK` with a success-message JSON body (`{ "message": "Resource deleted successfully" }`). Do not default to `204 No Content`. Special APIs may use a different status only when explicitly approved and documented.
 
 ### 2.4 Request/Response Format
 
@@ -158,7 +159,7 @@ The **API Gateway** (Spring Cloud Gateway) is the single entry point for all cli
 |---|---|---|---|---|
 | `auth-route` | `/api/auth/**` | `lb://auth-service` | Yes (strip `/api/auth`) | Public (register/login only) |
 | `user-route` | `/api/users/**` | `lb://user-service` | Yes | Yes |
-| `reading-route` | `/api/readings/**` | `lb://meter-service` | Yes | Yes |
+| `reading-route` | `/api/readings/**` | `lb://meter-reading-service` | Yes | Yes |
 | `bill-route` | `/api/bills/**` | `lb://billing-service` | Yes | Yes |
 | `payment-route` | `/api/payments/**` | `lb://payment-service` | Yes | Yes |
 | `complaint-route` | `/api/complaints/**` | `lb://complaint-service` | Yes | Yes |
@@ -184,7 +185,7 @@ The gateway itself exposes minimal endpoints:
 | `GET` | `/actuator/info` | No | Gateway info |
 | `GET` | `/fallback/auth` | No | Circuit breaker fallback for Auth Service |
 | `GET` | `/fallback/users` | No | Circuit breaker fallback for User Service |
-| `GET` | `/fallback/readings` | No | Circuit breaker fallback for Meter Service |
+| `GET` | `/fallback/readings` | No | Circuit breaker fallback for Meter Reading Service |
 | `GET` | `/fallback/bills` | No | Circuit breaker fallback for Billing Service |
 | `GET` | `/fallback/payments` | No | Circuit breaker fallback for Payment Service |
 | `GET` | `/fallback/complaints` | No | Circuit breaker fallback for Complaint Service |
@@ -574,7 +575,7 @@ Activate or deactivate a consumer account (Admin only).
 
 ---
 
-## 7. Meter Service APIs
+## 7. Meter Reading Service APIs
 
 **Base Path:** `/api/readings` (via gateway)
 **Owns:** `meter_db`
@@ -710,7 +711,7 @@ Flag a reading as suspicious (Admin only).
 
 ---
 
-### 7.3 Internal Endpoints (Meter Service)
+### 7.3 Internal Endpoints (Meter Reading Service)
 
 | Method | Path | Description | Called By |
 |---|---|---|---|
@@ -1457,8 +1458,8 @@ Internal APIs are endpoints that are **not exposed through the API Gateway**. Th
 | **User Service** | `GET /internal/{id}` | Get consumer profile | Billing, Payment, Complaint, Notification |
 | **User Service** | `GET /internal/batch` | Get multiple profiles | Notification Service (broadcast) |
 | **User Service** | `GET /internal/exists/{id}` | Check consumer exists | All services |
-| **Meter Service** | `GET /internal/consumer/{id}` | Get readings for date range | Billing Service |
-| **Meter Service** | `GET /internal/consumer/{id}/last` | Get last reading | Billing Service |
+| **Meter Reading Service** | `GET /internal/consumer/{id}` | Get readings for date range | Billing Service |
+| **Meter Reading Service** | `GET /internal/consumer/{id}/last` | Get last reading | Billing Service |
 | **Billing Service** | `PATCH /internal/{billId}/status` | Update bill payment status | Payment Service |
 | **Billing Service** | `GET /internal/{billId}` | Get bill for validation | Payment Service |
 | **Payment Service** | `GET /internal/bill/{billId}` | Get payment status for bill | Billing Service |
@@ -1474,8 +1475,8 @@ Internal APIs are endpoints that are **not exposed through the API Gateway**. Th
 | Triggering Event | Caller Service | Endpoint Called | Purpose |
 |---|---|---|---|
 | User Registration | Auth Service | `POST /internal` (User Service) | Create consumer profile |
-| Reading Submitted | Meter Service | — | (Future: trigger daily bill computation) |
-| Bill Generation | Billing Service | `GET /internal/consumer/{id}` (Meter Service) | Fetch readings for the billing period |
+| Reading Submitted | Meter Reading Service | — | (Future: trigger daily bill computation) |
+| Bill Generation | Billing Service | `GET /internal/consumer/{id}` (Meter Reading Service) | Fetch readings for the billing period |
 | Bill Generation | Billing Service | `GET /internal/{id}` (User Service) | Validate consumer exists |
 | Payment Recorded | Payment Service | `PATCH /internal/{billId}/status` (Billing Service) | Mark bill as PAID |
 | Payment Confirmed | Payment Service | `POST /internal` (Notification Service) | Send payment confirmation notification |
@@ -1495,21 +1496,21 @@ Internal APIs are endpoints that are **not exposed through the API Gateway**. Th
                              │
               ┌──────────────┼──────────────┐
               │              │              │
-       ┌──────▼──────┐ ┌────▼────┐  ┌──────▼──────┐
-       │ Auth Service│ │User Svc │  │Meter Service│
-       │  :8081      │ │ :8082   │  │  :8083      │
-       └──────┬──────┘ └────┬────┘  └──────┬──────┘
+       ┌──────▼──────┐ ┌────▼────┐  ┌──────▼────────────┐
+       │ Auth Service│ │User Svc │  │Meter Reading      │
+       │  :8081      │ │ :8082   │  │ Service :8083     │
+       └──────┬──────┘ └────┬────┘  └──────┬────────────┘
               │              │              │
               │              │              │
        ┌──────▼──────┐ ┌────▼────┐  ┌──────▼──────┐
-       │Billing Svc  │ │Payment  │  │ Complaint   │
-       │  :8084      │ │ :8085   │  │  :8086      │
+       │Backend      │ │Payment  │  │ Complaint   │
+       │  :8084      │ │ :8086   │  │  :8087      │
        └──────┬──────┘ └────┬────┘  └──────┬──────┘
               │              │              │
               │        ┌─────▼──────┐       │
               │        │Notification│       │
               └────────┤ Service    ├───────┘
-                       │ :8087      │
+                       │ :8088      │
                        └────────────┘
 ```
 
