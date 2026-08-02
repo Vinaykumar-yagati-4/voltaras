@@ -7,17 +7,6 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-/**
- * Represents a hostel, institution, apartment, or commercial organization.
- * <p>
- * Organization membership is optional in VOLTARAS; every user can register
- * and log in normally without belonging to an organization.
- * <p>
- * createdByAuthUserId is the authenticated user ID received from the API
- * Gateway through the X-User-Id header. It is an external Auth Service
- * identity and is intentionally stored as a plain Long without any JPA
- * relationship or foreign key to another microservice database.
- */
 @Entity
 @Table(
         name = "organizations",
