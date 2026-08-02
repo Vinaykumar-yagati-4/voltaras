@@ -55,7 +55,7 @@ An **API Gateway** acts as the single entry point for all client requests, routi
      └─────────────────────────────────────────────────────────────────────────────┘
 
      ┌─────────────────────────────────────────────────────────────────────────────┐
-     │                         Meter Service                                       │
+     │                         Meter Reading Service                            │
      │              (Meter Reading Submission, History, Validation)                │
      │                   ┌──────────────────────┐                                  │
      │                   │   MySQL (Meter DB)    │                                  │
@@ -133,11 +133,11 @@ An **API Gateway** acts as the single entry point for all client requests, routi
 |---|---|---|---|
 | API Gateway | Auth Service | Login, register, token validation | REST |
 | API Gateway | User Service | Profile CRUD, admin user management | REST |
-| API Gateway | Meter Service | Submit reading, view history | REST |
+| API Gateway | Meter Reading Service | Submit reading, view history | REST |
 | API Gateway | Billing Service | Generate bills, view bills | REST |
 | API Gateway | Payment Service | Record payment, view history | REST |
 | API Gateway | Notification Service | View/send notifications | REST |
-| Billing Service | Meter Service | Fetch daily readings for bill calculation | REST (internal) |
+| Billing Service | Meter Reading Service | Fetch daily readings for bill calculation | REST (internal) |
 | Billing Service | User Service | Fetch consumer details for billing | REST (internal) |
 | Payment Service | Billing Service | Update bill status after payment | REST (internal) |
 | Auth Service | User Service | Register user profile after signup | REST (internal) |
@@ -203,7 +203,7 @@ An **API Gateway** acts as the single entry point for all client requests, routi
 
 ---
 
-### 4.5 Meter Service
+### 4.5 Meter Reading Service
 
 | Responsibility | Details |
 |---|---|
@@ -270,16 +270,16 @@ The API Gateway (Spring Cloud Gateway) routes incoming requests to the correct m
 |---|---|
 | `/api/auth/**` | Auth Service |
 | `/api/users/**` | User Service |
-| `/api/readings/**` | Meter Service |
+| `/api/readings/**` | Meter Reading Service |
 | `/api/bills/**` | Billing Service |
 | `/api/payments/**` | Payment Service |
 | `/api/notifications/**` | Notification Service |
-| `/api/complaints/**` | (Handled within User Service or dedicated service in V2) |
+| `/api/complaints/**` | Complaint Service |
 
 **Routing flow:**
 
 ```
-Client → /api/bills/123 → Gateway → discovers Billing-Service via Eureka → http://billing-service:8083/api/bills/123
+Client → /api/meter-readings/123 → Gateway → discovers Meter-Reading-Service via Eureka → http://meter-reading-service:8083/api/meter-readings/123
 ```
 
 ### 5.2 Eureka Discovery
@@ -297,10 +297,12 @@ Client → /api/bills/123 → Gateway → discovers Billing-Service via Eureka �
 | API Gateway | `api-gateway` | 8080 |
 | Auth Service | `auth-service` | 8081 |
 | User Service | `user-service` | 8082 |
-| Meter Service | `meter-service` | 8083 |
-| Billing Service | `billing-service` | 8084 |
-| Payment Service | `payment-service` | 8085 |
-| Notification Service | `notification-service` | 8086 |
+| Meter Reading Service | `meter-reading-service` | 8083 |
+| Backend | `backend` | 8084 |
+| Organization Service | `organization-service` | 8085 |
+| Payment Service | `payment-service` | 8086 |
+| Complaint Service | `complaint-service` | 8087 |
+| Notification Service | `notification-service` | 8088 |
 
 ### 5.3 REST Communication
 
@@ -310,10 +312,10 @@ Client → /api/bills/123 → Gateway → discovers Billing-Service via Eureka �
 - Internal service calls include the original JWT token in the `Authorization` header for propagation (token relay).
 - A correlation ID (`X-Correlation-Id`) is passed through all service calls for request tracing.
 
-**Example internal call (Billing Service → Meter Service):**
+**Example internal call (Billing Service → Meter Reading Service):**
 
 ```
-GET http://meter-service/api/internal/readings?consumerId=101&from=2026-07-01&to=2026-07-31
+GET http://meter-reading-service/api/internal/readings?consumerId=101&from=2026-07-01&to=2026-07-31
 Authorization: Bearer <service-account-jwt or relayed-user-jwt>
 X-Correlation-Id: 550e8400-e29b-41d4-a716-446655440000
 ```
@@ -663,16 +665,13 @@ Client                    API Gateway               Auth Service
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  Service Startup Order:                                │ │
 │  │                                                         │ │
-│  │  1. Eureka Server   (mvn spring-boot:run -pl eureka)   │ │
-│  │  2. Config Server   (if centralized config needed)     │ │
-│  │  3. Auth Service    (mvn spring-boot:run -pl auth)     │ │
-│  │  4. User Service    (mvn spring-boot:run -pl user)     │ │
-│  │  5. Meter Service   (mvn spring-boot:run -pl meter)    │ │
-│  │  6. Billing Service (mvn spring-boot:run -pl billing)  │ │
-│  │  7. Payment Service (mvn spring-boot:run -pl payment)  │ │
-│  │  8. Notification Svc(mvn spring-boot:run -pl notify)   │ │
-│  │  9. API Gateway     (mvn spring-boot:run -pl gateway)  │ │
-│  │  10. Frontend       (cd frontend && npm run dev)       │ │
+│  │  1. Eureka Server       (mvn spring-boot:run -pl eureka-server)│ │
+│  │  2. Auth Service        (mvn spring-boot:run -pl auth-service) │ │
+│  │  3. User Service        (mvn spring-boot:run -pl user-service) │ │
+│  │  4. Meter Reading Svc   (mvn spring-boot:run -pl meter-reading)│ │
+│  │  5. Organization Svc    (mvn spring-boot:run -pl organization) │ │
+│  │  6. API Gateway         (mvn spring-boot:run -pl api-gateway)  │ │
+│  │  7. Frontend            (cd frontend && npm run dev)           │ │
 │  └────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -685,12 +684,14 @@ Client                    API Gateway               Auth Service
 | API Gateway | `mvn spring-boot:run -pl api-gateway` | http://localhost:8080 |
 | Auth Service | `mvn spring-boot:run -pl auth-service` | http://localhost:8081 |
 | User Service | `mvn spring-boot:run -pl user-service` | http://localhost:8082 |
-| Meter Service | `mvn spring-boot:run -pl meter-service` | http://localhost:8083 |
-| Billing Service | `mvn spring-boot:run -pl billing-service` | http://localhost:8084 |
-| Payment Service | `mvn spring-boot:run -pl payment-service` | http://localhost:8085 |
-| Notification Service | `mvn spring-boot:run -pl notification-service` | http://localhost:8086 |
+| Meter Reading Service | `mvn spring-boot:run -pl meter-reading-service` | http://localhost:8083 |
+| Backend | `mvn spring-boot:run -pl backend` | http://localhost:8084 |
+| Organization Service | `mvn spring-boot:run -pl organization-service` | http://localhost:8085 |
+| Payment Service | `mvn spring-boot:run -pl payment-service` | http://localhost:8086 |
+| Complaint Service | `mvn spring-boot:run -pl complaint-service` | http://localhost:8087 |
+| Notification Service | `mvn spring-boot:run -pl notification-service` | http://localhost:8088 |
 | Frontend | `npm run dev` | http://localhost:5173 |
-| MySQL (all services) | Docker Compose (multiple containers) | localhost:3307–3312 |
+| MySQL (all services) | Docker Compose (multiple containers) | localhost:3307–3314 |
 
 **MySQL Docker Compose (development):**
 
@@ -698,41 +699,49 @@ Client                    API Gateway               Auth Service
 |---|---|---|---|
 | Auth Service | `voltaras_auth` | 3306 | 3307 |
 | User Service | `voltaras_users` | 3306 | 3308 |
-| Meter Service | `voltaras_meter` | 3306 | 3309 |
-| Billing Service | `voltaras_billing` | 3306 | 3310 |
+| Meter Reading Service | `voltaras_meter` | 3306 | 3309 |
+| Backend | `voltaras_billing` | 3306 | 3310 |
 | Payment Service | `voltaras_payment` | 3306 | 3311 |
 | Notification Service | `voltaras_notification` | 3306 | 3312 |
+| Organization Service | `voltaras_organization` | 3306 | 3313 |
+| Complaint Service | `voltaras_complaint` | 3306 | 3314 |
 
 ### 8.2 Docker Deployment (Future)
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                   Docker Host (Testing / Staging)               │
-│                                                                 │
+│                   Docker Host (Testing / Staging)              │
+│                                                                │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Docker Compose (docker-compose.yml)                      │  │
-│  │                                                           │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐ │  │
-│  │  │ eureka-server │  │  api-gateway  │  │  auth-service  │ │  │
-│  │  │ :8761         │  │  :8080        │  │  :8081         │ │  │
-│  │  └──────────────┘  └──────────────┘  └───────┬────────┘ │  │
-│  │                                               │          │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌───────▼────────┐ │  │
-│  │  │ user-service  │  │ meter-service│  │ billing-service│ │  │
-│  │  │ :8082         │  │ :8083        │  │ :8084          │ │  │
-│  │  └───────┬───────┘  └──────┬───────┘  └───────┬────────┘ │  │
-│  │          │                 │                   │          │  │
-│  │  ┌───────▼───────┐  ┌─────▼────────┐  ┌──────▼─────────┐ │  │
-│  │  │payment-service│  │notification  │  │ MySQL Containers│ │  │
-│  │  │ :8085         │  │ -service     │  │ (6 DBs, each   │ │  │
-│  │  └───────────────┘  │ :8086        │  │  mapped to own │ │  │
-│  │                      └──────────────┘  │  container)    │ │  │
-│  │                                         └────────────────┘ │  │
-│  │                                                           │  │
-│  │  ┌──────────────────────────────────────────────────────┐ │  │
-│  │  │  Frontend (Nginx, :80)                               │ │  │
-│  │  │  Reverse proxy → http://api-gateway:8080             │ │  │
-│  │  └──────────────────────────────────────────────────────┘ │  │
+│  │  Docker Compose (docker-compose.yml)                     │  │
+│  │                                                          │  │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐ │  │
+│  │  │ eureka-server │  │  api-gateway  │  │  auth-service │ │  │
+│  │  │     :8761     │  │    :8080      │  │    :8081      │ │  │
+│  │  └───────────────┘  └───────────────┘  └───────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐ │  │
+│  │  │ user-service  │  │ meter-reading-│  │    backend    │ │  │
+│  │  │    :8082      │  │  service      │  │    :8084      │ │  │
+│  │  │               │  │    :8083      │  │               │ │  │
+│  │  └───────────────┘  └───────────────┘  └───────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐ │  │
+│  │  │ organization- │  │ payment-      │  │ complaint-    │ │  │
+│  │  │  service      │  │  service      │  │  service      │ │  │
+│  │  │    :8085      │  │    :8086      │  │    :8087      │ │  │
+│  │  └───────────────┘  └───────────────┘  └───────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌───────────────┐  ┌──────────────────────────────────┐ │  │
+│  │  │ notification- │  │  MySQL Containers               │  │  │
+│  │  │  service      │  │  (8 DBs, each own container)    │  │  │
+│  │  │    :8088      │  │                                  │ │  │
+│  │  └───────────────┘  └──────────────────────────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌─────────────────────────────────────────────────────┐ │  │
+│  │  │  Frontend (Nginx, :80)                              │ │  │
+│  │  │  Reverse proxy → http://api-gateway:8080           │  │  │
+│  │  └─────────────────────────────────────────────────────┘ │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
 ```
