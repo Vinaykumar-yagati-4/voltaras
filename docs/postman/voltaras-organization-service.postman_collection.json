@@ -1,0 +1,1867 @@
+{
+  "info": {
+    "_postman_id": "voltaras-organization-service-2026-0001",
+    "name": "VOLTARAS Organization Service",
+    "description": "API tests for the VOLTARAS Organization Service.\n\nSETUP\n1. Start Eureka, Auth, User, Meter Reading, Organization, and the API Gateway (http://localhost:8080).\n2. Register accounts via POST /api/auth/register (public route): consumer-a, consumer-b, consumer-c (CONSUMER) and system-admin (ADMIN).\n3. Open the Organizations folder and run 'Login (Consumer-A)' and 'Login (System Admin)' first — the JWTs are stored automatically in the collection variables accessToken / adminAccessToken.\n4. Run 'Create Organization (201)' to seed organizationId, then 'Create Building' / 'Create Block' / 'Create Floor' / 'Create Unit' in order to seed buildingId, blockId, floorId and unitId.\n\nDo NOT add X-User-Id / X-User-Email / X-User-Role headers manually — the API Gateway validates the JWT and injects them automatically.\n\nFolders: Organizations · Join Requests · Memberships · Buildings · Blocks · Floors · Units · System Admin · Negative Tests\n\nOrganization codes and structure codes use unique dynamic values ({{$guid}} / Date.now()) so the collection can be re-run without duplicate conflicts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" },
+    { "key": "consumerBToken", "value": "" },
+    { "key": "organizationId", "value": "" },
+    { "key": "joinRequestId", "value": "" },
+    { "key": "membershipId", "value": "" },
+    { "key": "buildingId", "value": "" },
+    { "key": "blockId", "value": "" },
+    { "key": "floorId", "value": "" },
+    { "key": "unitId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Login (Consumer-A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('JWT token is present', function () {",
+                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('accessToken', jsonData.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"consumer-a@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Login (System Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('JWT token with ADMIN role is present', function () {",
+                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.role).to.eql('ADMIN');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('adminAccessToken', jsonData.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"system-admin@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Create Organization (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Organization id captured and status ACTIVE', function () {",
+                  "    pm.expect(jsonData.id).to.not.be.undefined;",
+                  "    pm.collectionVariables.set('organizationId', String(jsonData.id));",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunrise Hostel\",\n  \"organizationCode\": \"SUNRISE-{{$guid}}\",\n  \"organizationType\": \"HOSTEL\",\n  \"description\": \"Student hostel near campus\",\n  \"email\": \"sunrise@example.com\",\n  \"phone\": \"9876543210\",\n  \"addressLine1\": \"12 College Road\",\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"country\": \"India\",\n  \"postalCode\": \"411001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations"
+            }
+          }
+        },
+        {
+          "name": "Get My Organizations (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Caller has an OWNER ACTIVE membership', function () {",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
+                  "    pm.expect(jsonData[0].membershipRole).to.eql('OWNER');",
+                  "    pm.expect(jsonData[0].membershipStatus).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/me"
+            }
+          }
+        },
+        {
+          "name": "Get Organization By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Returned organization matches organizationId', function () {",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('organizationId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Organization (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Updated name returned', function () {",
+                  "    pm.expect(jsonData.name).to.eql('Sunrise Hostel (Renovated)');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunrise Hostel (Renovated)\",\n  \"organizationType\": \"HOSTEL\",\n  \"description\": \"Renovated 2026\",\n  \"email\": \"sunrise@example.com\",\n  \"addressLine1\": \"12 College Road\",\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"country\": \"India\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}"
+            }
+          }
+        },
+        {
+          "name": "Deactivate Organization (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is INACTIVE', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('INACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/deactivate"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Join Requests",
+      "item": [
+        {
+          "name": "Login (Consumer-B - Non-Member)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('JWT token is present', function () {",
+                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('consumerBToken', jsonData.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"consumer-b@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Create Join Request (201)",
+          "description": "Uses the consumer-b (non-member) token to create a join request for the organization owned by consumer-a. An ACTIVE member would receive 409.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Response is JSON', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Request is PENDING and id captured', function () {",
+                  "    pm.expect(jsonData.status).to.eql('PENDING');",
+                  "    pm.collectionVariables.set('joinRequestId', String(jsonData.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{consumerBToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestedRole\": \"TENANT\",\n  \"requestMessage\": \"I would like to join the hostel\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests"
+            }
+          }
+        },
+        {
+          "name": "List Join Requests (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests"
+            }
+          }
+        },
+        {
+          "name": "List Join Requests by Status (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('All requests are PENDING', function () {",
+                  "    jsonData.forEach(function (request) {",
+                  "        pm.expect(request.status).to.eql('PENDING');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests?status=PENDING"
+            }
+          }
+        },
+        {
+          "name": "Get My Join Requests (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/join-requests/me"
+            }
+          }
+        },
+        {
+          "name": "Approve Join Request (200)",
+          "description": "Run with the OWNER token. On approval a membership is created automatically.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is APPROVED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('APPROVED');",
+                  "    pm.expect(jsonData.reviewedByAuthUserId).to.not.be.undefined;",
+                  "    pm.expect(jsonData.reviewedAt).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests/{{joinRequestId}}/approve"
+            }
+          }
+        },
+        {
+          "name": "Reject Join Request (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is REJECTED with remarks', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('REJECTED');",
+                  "    pm.expect(jsonData.rejectionRemarks).to.include('capacity');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"Not enough capacity at this time\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests/{{joinRequestId}}/reject"
+            }
+          }
+        },
+        {
+          "name": "Cancel Join Request (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is CANCELLED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('CANCELLED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests/{{joinRequestId}}/cancel"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memberships",
+      "item": [
+        {
+          "name": "List Members (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is paginated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.content).to.not.be.undefined;",
+                  "    pm.expect(jsonData.totalElements).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members"
+            }
+          }
+        },
+        {
+          "name": "List Members Paginated (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Pagination metadata present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.pageable.pageNumber).to.eql(0);",
+                  "    pm.expect(jsonData.pageable.pageSize).to.eql(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members?page=0&size=5"
+            }
+          }
+        },
+        {
+          "name": "Change Member Role (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Role updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('membershipId', String(jsonData.id));",
+                  "    pm.expect(jsonData.membershipRole).to.eql('MANAGER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"MANAGER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members/{{membershipId}}/role"
+            }
+          }
+        },
+        {
+          "name": "Assign ORGANIZATION_ADMIN (200)",
+          "description": "Only the OWNER can assign or remove the ORGANIZATION_ADMIN role.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Role is ORGANIZATION_ADMIN', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.membershipRole).to.eql('ORGANIZATION_ADMIN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ORGANIZATION_ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members/{{membershipId}}/role"
+            }
+          }
+        },
+        {
+          "name": "Suspend Member (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Membership is SUSPENDED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.membershipStatus).to.eql('SUSPENDED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members/{{membershipId}}/suspend"
+            }
+          }
+        },
+        {
+          "name": "Remove Member (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Confirmation message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('removed successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/members/{{membershipId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Buildings",
+      "item": [
+        {
+          "name": "Create Building (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Building id captured', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('buildingId', String(jsonData.id));",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Hostel Building\",\n  \"code\": \"MAIN-{{$guid}}\",\n  \"description\": \"Main residential block\",\n  \"address\": \"12 College Road, Pune\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/buildings"
+            }
+          }
+        },
+        {
+          "name": "List Buildings (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/buildings"
+            }
+          }
+        },
+        {
+          "name": "Get Building By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Building returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('buildingId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/buildings/{{buildingId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Building (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Name updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.eql('Main Hostel Building (Renovated)');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Hostel Building (Renovated)\",\n  \"description\": \"Renovated 2026\",\n  \"address\": \"12 College Road, Pune\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/buildings/{{buildingId}}"
+            }
+          }
+        },
+        {
+          "name": "Delete Building (200)",
+          "description": "Deleting a building that still contains blocks returns 400 BAD_REQUEST.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Confirmation message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/buildings/{{buildingId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Blocks",
+      "item": [
+        {
+          "name": "Create Block (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Block id captured', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('blockId', String(jsonData.id));",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Block A\",\n  \"code\": \"A-{{$guid}}\",\n  \"description\": \"East wing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/buildings/{{buildingId}}/blocks"
+            }
+          }
+        },
+        {
+          "name": "List Blocks (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/buildings/{{buildingId}}/blocks"
+            }
+          }
+        },
+        {
+          "name": "Get Block By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Block returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('blockId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/blocks/{{blockId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Block (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Name updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.eql('Block A (Renovated)');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Block A (Renovated)\",\n  \"description\": \"East wing renovated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/blocks/{{blockId}}"
+            }
+          }
+        },
+        {
+          "name": "Delete Block (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Confirmation message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/blocks/{{blockId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Floors",
+      "item": [
+        {
+          "name": "Create Floor (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Floor id captured', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('floorId', String(jsonData.id));",
+                  "    pm.expect(jsonData.floorNumber).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"floorNumber\": 1,\n  \"name\": \"First Floor\",\n  \"description\": \"Ground-level rooms\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/blocks/{{blockId}}/floors"
+            }
+          }
+        },
+        {
+          "name": "List Floors (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/blocks/{{blockId}}/floors"
+            }
+          }
+        },
+        {
+          "name": "Get Floor By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Floor returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('floorId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Floor (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Name updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.eql('First Floor (Renovated)');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"floorNumber\": 1,\n  \"name\": \"First Floor (Renovated)\",\n  \"description\": \"Renovated 2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}"
+            }
+          }
+        },
+        {
+          "name": "Delete Floor (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Confirmation message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Units",
+      "item": [
+        {
+          "name": "Create Unit (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Unit id captured and status AVAILABLE', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('unitId', String(jsonData.id));",
+                  "    pm.expect(jsonData.status).to.eql('AVAILABLE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitNumber\": \"101-{{$guid}}\",\n  \"unitName\": \"Deluxe Room\",\n  \"unitType\": \"ROOM\",\n  \"capacity\": 2,\n  \"description\": \"Double occupancy\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}/units"
+            }
+          }
+        },
+        {
+          "name": "List Units (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is a JSON array', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}/units"
+            }
+          }
+        },
+        {
+          "name": "Get Unit By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Unit returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('unitId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/units/{{unitId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Unit (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Unit name updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.unitName).to.eql('Deluxe Room (Renovated)');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitName\": \"Deluxe Room (Renovated)\",\n  \"unitType\": \"ROOM\",\n  \"capacity\": 3,\n  \"description\": \"Triple occupancy option\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/units/{{unitId}}"
+            }
+          }
+        },
+        {
+          "name": "Update Unit Status (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is OCCUPIED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('OCCUPIED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"OCCUPIED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/units/{{unitId}}/status"
+            }
+          }
+        },
+        {
+          "name": "Delete Unit (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Confirmation message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/units/{{unitId}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Admin",
+      "item": [
+        {
+          "name": "List All Organizations (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is paginated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.content).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations"
+            }
+          }
+        },
+        {
+          "name": "List All Organizations Filtered (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response is paginated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.content).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations?status=ACTIVE&type=HOSTEL"
+            }
+          }
+        },
+        {
+          "name": "Get Organization For Admin (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Organization returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('organizationId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/{{organizationId}}"
+            }
+          }
+        },
+        {
+          "name": "Suspend Organization (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is SUSPENDED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('SUSPENDED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/{{organizationId}}/suspend"
+            }
+          }
+        },
+        {
+          "name": "Activate Organization (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is ACTIVE', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/{{organizationId}}/activate"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "Missing JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Error message present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/me"
+            }
+          }
+        },
+        {
+          "name": "Invalid JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer invalid-token" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/me"
+            }
+          }
+        },
+        {
+          "name": "Create Organization Blank Name (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is VALIDATION_ERROR with field details', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    const field = jsonData.error.details.find(function (f) { return f.field === 'name'; });",
+                  "    pm.expect(field).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"organizationCode\": \"SUNRISE-{{$guid}}\",\n  \"organizationType\": \"HOSTEL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations"
+            }
+          }
+        },
+        {
+          "name": "Create Organization Unknown Type (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is VALIDATION_ERROR', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Hostel\",\n  \"organizationCode\": \"TEST-{{$guid}}\",\n  \"organizationType\": \"INDIVIDUAL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations"
+            }
+          }
+        },
+        {
+          "name": "Duplicate Organization Code (409)",
+          "description": "Self-contained: submits an organization with a unique dynamic code, then submits the identical body again and asserts the second submission returns 409 DUPLICATE_RESOURCE.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const baseUrl = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('accessToken');",
+                  "const duplicateBody = {",
+                  "    name: 'Sunrise Hostel Duplicate',",
+                  "    organizationCode: 'SUNRISE-DUP-' + Date.now(),",
+                  "    organizationType: 'HOSTEL'",
+                  "};",
+                  "",
+                  "const submit = {",
+                  "    url: baseUrl + '/api/organizations',",
+                  "    method: 'POST',",
+                  "    header: {",
+                  "        'Authorization': 'Bearer ' + token,",
+                  "        'Content-Type': 'application/json'",
+                  "    },",
+                  "    body: { mode: 'raw', raw: JSON.stringify(duplicateBody) }",
+                  "};",
+                  "",
+                  "pm.sendRequest(submit, function (err, res1) {",
+                  "    pm.expect(err).to.be.null;",
+                  "    pm.expect(res1.code).to.eql(201);",
+                  "",
+                  "    pm.sendRequest(submit, function (err2, res2) {",
+                  "        pm.expect(err2).to.be.null;",
+                  "        pm.test('Second submission is 409 Conflict', function () {",
+                  "            pm.expect(res2.code).to.eql(409);",
+                  "        });",
+                  "        pm.test('Error code is DUPLICATE_RESOURCE', function () {",
+                  "            const jsonData = res2.json();",
+                  "            pm.expect(jsonData.error.code).to.eql('DUPLICATE_RESOURCE');",
+                  "            pm.expect(jsonData.error.message).to.include('already exists');",
+                  "        });",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunrise Hostel Duplicate\",\n  \"organizationCode\": \"SUNRISE-DUP-{{$guid}}\",\n  \"organizationType\": \"HOSTEL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations"
+            }
+          }
+        },
+        {
+          "name": "Reject Join Request Blank Remarks (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is VALIDATION_ERROR', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"   \"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/join-requests/{{joinRequestId}}/reject"
+            }
+          }
+        },
+        {
+          "name": "Create Unit Negative Capacity (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is VALIDATION_ERROR', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitNumber\": \"NEG-{{$guid}}\",\n  \"unitType\": \"ROOM\",\n  \"capacity\": -1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/floors/{{floorId}}/units"
+            }
+          }
+        },
+        {
+          "name": "Malformed JSON (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is MALFORMED_REQUEST', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('MALFORMED_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations"
+            }
+          }
+        },
+        {
+          "name": "Non-Numeric Organization Id (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is INVALID_ARGUMENT', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('INVALID_ARGUMENT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/abc"
+            }
+          }
+        },
+        {
+          "name": "Organization Not Found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () { pm.response.to.have.status(404); });",
+                  "pm.test('Error is RESOURCE_NOT_FOUND', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations/999999"
+            }
+          }
+        },
+        {
+          "name": "Consumer Attempts Admin Endpoint (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 Forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error is FORBIDDEN_OPERATION', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('FORBIDDEN_OPERATION');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations"
+            }
+          }
+        },
+        {
+          "name": "Non-Member Views Organization (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403 Forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Error is FORBIDDEN_OPERATION', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('FORBIDDEN_OPERATION');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}"
+            }
+          }
+        },
+        {
+          "name": "Direct Service Call Without Headers (400)",
+          "description": "Debug only: hits port 8085 directly, bypassing the Gateway JWT validation. The service requires the trusted headers, so this returns 400 MISSING_HEADER.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error is MISSING_HEADER', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('MISSING_HEADER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8085/api/organizations/me"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
