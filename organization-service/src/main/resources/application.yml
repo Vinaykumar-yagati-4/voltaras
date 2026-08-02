@@ -49,3 +49,4 @@ logging:
   level:
     org.hibernate.SQL: ${LOG_HIBERNATE_SQL:WARN}
     com.voltaras.organizationservice: ${LOG_APP_LEVEL:INFO}
+
