@@ -143,6 +143,17 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+            Testing
+            =======
+        -->
+        <!-- JUnit 5, Mockito, AssertJ and MockMvc for unit and web-layer tests -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
