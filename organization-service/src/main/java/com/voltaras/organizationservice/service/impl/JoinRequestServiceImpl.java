@@ -28,9 +28,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Implements the join-request workflow. Approval creates an ACTIVE
- * membership with the requested role in the same transaction; a previously
- * removed or suspended membership row is reactivated instead of duplicated.
+ * Implements the join-request workflow.
+ *
+ * Approval creates an ACTIVE membership with the requested role in the same
+ * transaction. A previously removed or suspended membership row is reactivated
+ * instead of creating a duplicate membership.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,53 +47,93 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional
     public JoinRequestResponse createJoinRequest(
-            Long authUserId, Long organizationId, CreateJoinRequest request) {
+            Long authUserId,
+            Long organizationId,
+            CreateJoinRequest request
+    ) {
 
         accessHelper.requireAuthenticatedUser(authUserId);
 
         Organization organization =
                 accessHelper.requireActiveOrganization(organizationId);
 
-        // An ACTIVE member cannot request to join (again).
-        if (membershipRepository.existsByOrganizationIdAndAuthUserIdAndMembershipStatus(
-                organizationId, authUserId, MembershipStatus.ACTIVE)) {
-            log.warn("Join request rejected: user {} is already an active member of {}",
-                    authUserId, organizationId);
+        /*
+         * An ACTIVE member cannot create another join request for the same
+         * organization.
+         */
+        if (membershipRepository
+                .existsByOrganizationIdAndAuthUserIdAndMembershipStatus(
+                        organizationId,
+                        authUserId,
+                        MembershipStatus.ACTIVE
+                )) {
+
+            log.warn(
+                    "Join request rejected: user {} is already an active member of organization {}",
+                    authUserId,
+                    organizationId
+            );
+
             throw new DuplicateResourceException(
-                    "Membership", "organizationId, authUserId",
-                    organizationId + ", " + authUserId);
+                    "Membership",
+                    "organizationId, authUserId",
+                    organizationId + ", " + authUserId
+            );
         }
 
-        // One PENDING request per (organization, user).
-        if (joinRequestRepository.existsByOrganizationIdAndAuthUserIdAndStatus(
-                organizationId, authUserId, JoinRequestStatus.PENDING)) {
-            log.warn("Duplicate pending join request rejected: org={}, user={}",
-                    organizationId, authUserId);
+        /*
+         * Only one PENDING request is allowed for the same organization and
+         * user.
+         */
+        if (joinRequestRepository
+                .existsByOrganizationIdAndAuthUserIdAndStatus(
+                        organizationId,
+                        authUserId,
+                        JoinRequestStatus.PENDING
+                )) {
+
+            log.warn(
+                    "Duplicate pending join request rejected: organizationId={}, authUserId={}",
+                    organizationId,
+                    authUserId
+            );
+
             throw new DuplicateResourceException(
-                    "JoinRequest", "organizationId, authUserId",
-                    organizationId + ", " + authUserId);
+                    "JoinRequest",
+                    "organizationId, authUserId",
+                    organizationId + ", " + authUserId
+            );
         }
 
-        // Default role is MEMBER; OWNER/ORGANIZATION_ADMIN can never be requested.
-        MembershipRole requestedRole = request.getRequestedRole() == null
-                ? MembershipRole.MEMBER
-                : request.getRequestedRole();
+        /*
+         * MEMBER is the default requested role.
+         */
+        MembershipRole requestedRole =
+                request.getRequestedRole() == null
+                        ? MembershipRole.MEMBER
+                        : request.getRequestedRole();
 
         validateRequestedRole(requestedRole);
 
-        OrganizationJoinRequest joinRequest = OrganizationJoinRequest.builder()
-                .organization(organization)
-                .authUserId(authUserId)
-                .requestedRole(requestedRole)
-                .requestMessage(request.getRequestMessage())
-                .status(JoinRequestStatus.PENDING)
-                .build();
+        OrganizationJoinRequest joinRequest =
+                OrganizationJoinRequest.builder()
+                        .organization(organization)
+                        .authUserId(authUserId)
+                        .requestedRole(requestedRole)
+                        .requestMessage(request.getRequestMessage())
+                        .status(JoinRequestStatus.PENDING)
+                        .build();
 
         OrganizationJoinRequest saved =
                 joinRequestRepository.save(joinRequest);
 
-        log.info("Join request created: requestId={}, org={}, user={}, role={}",
-                saved.getId(), organizationId, authUserId, requestedRole);
+        log.info(
+                "Join request created: requestId={}, organizationId={}, authUserId={}, requestedRole={}",
+                saved.getId(),
+                organizationId,
+                authUserId,
+                requestedRole
+        );
 
         return joinRequestMapper.toResponse(saved);
     }
@@ -99,21 +141,36 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<JoinRequestResponse> getOrganizationJoinRequests(
-            Long adminUserId, Long organizationId, JoinRequestStatus status) {
+            Long adminUserId,
+            Long organizationId,
+            JoinRequestStatus status
+    ) {
 
         accessHelper.requireOrganizationRole(
-                organizationId, adminUserId,
-                MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN);
+                organizationId,
+                adminUserId,
+                MembershipRole.OWNER,
+                MembershipRole.ORGANIZATION_ADMIN
+        );
 
         List<OrganizationJoinRequest> requests;
 
         if (status == null) {
-            requests = joinRequestRepository
-                    .findAllByOrganizationIdOrderByCreatedAtDesc(organizationId);
+
+            requests =
+                    joinRequestRepository
+                            .findAllByOrganizationIdOrderByCreatedAtDesc(
+                                    organizationId
+                            );
+
         } else {
-            requests = joinRequestRepository
-                    .findAllByOrganizationIdAndStatusOrderByCreatedAtDesc(
-                            organizationId, status);
+
+            requests =
+                    joinRequestRepository
+                            .findAllByOrganizationIdAndStatusOrderByCreatedAtDesc(
+                                    organizationId,
+                                    status
+                            );
         }
 
         return requests.stream()
@@ -137,26 +194,41 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional
     public JoinRequestResponse approveJoinRequest(
-            Long reviewerUserId, Long organizationId, Long requestId) {
+            Long reviewerUserId,
+            Long organizationId,
+            Long requestId
+    ) {
 
         accessHelper.requireOrganizationRole(
-                organizationId, reviewerUserId,
-                MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN);
+                organizationId,
+                reviewerUserId,
+                MembershipRole.OWNER,
+                MembershipRole.ORGANIZATION_ADMIN
+        );
 
-        OrganizationJoinRequest joinRequest = findPendingRequest(organizationId, requestId);
+        OrganizationJoinRequest joinRequest =
+                findPendingRequest(organizationId, requestId);
 
-        // Membership is created with the requested role.
+        /*
+         * Create a new membership or reactivate an existing suspended/removed
+         * membership.
+         */
         createOrReactivateMembership(joinRequest);
 
         joinRequest.setStatus(JoinRequestStatus.APPROVED);
         joinRequest.setReviewedByAuthUserId(reviewerUserId);
         joinRequest.setReviewedAt(LocalDateTime.now());
 
-        OrganizationJoinRequest saved = joinRequestRepository.save(joinRequest);
+        OrganizationJoinRequest saved =
+                joinRequestRepository.save(joinRequest);
 
-        log.info("Join request approved: requestId={}, org={}, user={}, reviewer={}",
-                saved.getId(), organizationId,
-                saved.getAuthUserId(), reviewerUserId);
+        log.info(
+                "Join request approved: requestId={}, organizationId={}, authUserId={}, reviewerUserId={}",
+                saved.getId(),
+                organizationId,
+                saved.getAuthUserId(),
+                reviewerUserId
+        );
 
         return joinRequestMapper.toResponse(saved);
     }
@@ -164,30 +236,67 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional
     public JoinRequestResponse rejectJoinRequest(
-            Long reviewerUserId, Long organizationId, Long requestId,
-            RejectJoinRequest request) {
+            Long reviewerUserId,
+            Long organizationId,
+            Long requestId,
+            RejectJoinRequest request
+    ) {
 
+        /*
+         * TEMPORARY DEBUG LOGS
+         *
+         * These logs help us verify which values are actually received from
+         * the API Gateway and controller.
+         */
+        log.info("========== REJECT JOIN REQUEST DEBUG ==========");
+        log.info("Reviewer User ID : {}", reviewerUserId);
+        log.info("Organization ID  : {}", organizationId);
+        log.info("Join Request ID  : {}", requestId);
+        log.info("Rejection Remarks: {}", request.getRemarks());
+        log.info("================================================");
+
+        /*
+         * Only an ACTIVE OWNER or ORGANIZATION_ADMIN of the organization can
+         * reject a join request.
+         */
         accessHelper.requireOrganizationRole(
-                organizationId, reviewerUserId,
-                MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN);
+                organizationId,
+                reviewerUserId,
+                MembershipRole.OWNER,
+                MembershipRole.ORGANIZATION_ADMIN
+        );
 
-        // Remarks are mandatory (also enforced by @NotBlank on the DTO).
+        /*
+         * Remarks are mandatory.
+         * This is also validated by @NotBlank inside RejectJoinRequest.
+         */
         if (!StringUtils.hasText(request.getRemarks())) {
-            throw new BadRequestException("Rejection remarks are required");
+            throw new BadRequestException(
+                    "Rejection remarks are required"
+            );
         }
 
-        OrganizationJoinRequest joinRequest = findPendingRequest(organizationId, requestId);
+        /*
+         * Only a PENDING join request can be rejected.
+         */
+        OrganizationJoinRequest joinRequest =
+                findPendingRequest(organizationId, requestId);
 
         joinRequest.setStatus(JoinRequestStatus.REJECTED);
         joinRequest.setRejectionRemarks(request.getRemarks());
         joinRequest.setReviewedByAuthUserId(reviewerUserId);
         joinRequest.setReviewedAt(LocalDateTime.now());
 
-        OrganizationJoinRequest saved = joinRequestRepository.save(joinRequest);
+        OrganizationJoinRequest saved =
+                joinRequestRepository.save(joinRequest);
 
-        log.info("Join request rejected: requestId={}, org={}, user={}, reviewer={}",
-                saved.getId(), organizationId,
-                saved.getAuthUserId(), reviewerUserId);
+        log.info(
+                "Join request rejected: requestId={}, organizationId={}, authUserId={}, reviewerUserId={}",
+                saved.getId(),
+                organizationId,
+                saved.getAuthUserId(),
+                reviewerUserId
+        );
 
         return joinRequestMapper.toResponse(saved);
     }
@@ -195,103 +304,187 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional
     public JoinRequestResponse cancelJoinRequest(
-            Long authUserId, Long organizationId, Long requestId) {
+            Long authUserId,
+            Long organizationId,
+            Long requestId
+    ) {
 
-        OrganizationJoinRequest joinRequest = joinRequestRepository
-                .findByIdAndOrganizationId(requestId, organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "JoinRequest", "id", requestId));
+        OrganizationJoinRequest joinRequest =
+                joinRequestRepository
+                        .findByIdAndOrganizationId(
+                                requestId,
+                                organizationId
+                        )
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException(
+                                        "JoinRequest",
+                                        "id",
+                                        requestId
+                                )
+                        );
 
         if (joinRequest.getStatus() != JoinRequestStatus.PENDING) {
+
             throw new InvalidStateException(
-                    "Only PENDING join requests can be cancelled");
+                    "Only PENDING join requests can be cancelled"
+            );
         }
 
-        // The original requester may cancel their own request; otherwise
-        // OWNER / ORGANIZATION_ADMIN may cancel any pending request.
-        boolean isRequester = joinRequest.getAuthUserId().equals(authUserId);
+        /*
+         * The original requester can cancel their own request.
+         *
+         * Otherwise, an OWNER or ORGANIZATION_ADMIN can cancel the pending
+         * request.
+         */
+        boolean isRequester =
+                joinRequest.getAuthUserId().equals(authUserId);
 
         if (!isRequester) {
+
             accessHelper.requireOrganizationRole(
-                    organizationId, authUserId,
-                    MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN);
+                    organizationId,
+                    authUserId,
+                    MembershipRole.OWNER,
+                    MembershipRole.ORGANIZATION_ADMIN
+            );
         }
 
         joinRequest.setStatus(JoinRequestStatus.CANCELLED);
 
-        OrganizationJoinRequest saved = joinRequestRepository.save(joinRequest);
+        OrganizationJoinRequest saved =
+                joinRequestRepository.save(joinRequest);
 
-        log.info("Join request cancelled: requestId={}, org={}, user={}",
-                saved.getId(), organizationId, authUserId);
+        log.info(
+                "Join request cancelled: requestId={}, organizationId={}, authUserId={}",
+                saved.getId(),
+                organizationId,
+                authUserId
+        );
 
         return joinRequestMapper.toResponse(saved);
     }
 
-    // ------------------------------------------------------------------
-    // Private helpers
-    // ------------------------------------------------------------------
+    /*
+     * Finds a join request inside the requested organization and confirms that
+     * its current status is PENDING.
+     */
+    private OrganizationJoinRequest findPendingRequest(
+            Long organizationId,
+            Long requestId
+    ) {
 
-    private OrganizationJoinRequest findPendingRequest(Long organizationId, Long requestId) {
-
-        OrganizationJoinRequest joinRequest = joinRequestRepository
-                .findByIdAndOrganizationId(requestId, organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "JoinRequest", "id", requestId));
+        OrganizationJoinRequest joinRequest =
+                joinRequestRepository
+                        .findByIdAndOrganizationId(
+                                requestId,
+                                organizationId
+                        )
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException(
+                                        "JoinRequest",
+                                        "id",
+                                        requestId
+                                )
+                        );
 
         if (joinRequest.getStatus() != JoinRequestStatus.PENDING) {
+
             throw new InvalidStateException(
-                    "Only PENDING join requests can be reviewed");
+                    "Only PENDING join requests can be reviewed"
+            );
         }
 
         return joinRequest;
     }
 
     /**
-     * Creates a new ACTIVE membership, or reactivates a previously removed /
-     * suspended membership row (the (organization, user) combination is unique).
+     * Creates a new ACTIVE membership or reactivates a previously removed or
+     * suspended membership.
+     *
+     * @param joinRequest approved join request
      */
-    private void createOrReactivateMembership(OrganizationJoinRequest joinRequest) {
+    private void createOrReactivateMembership(
+            OrganizationJoinRequest joinRequest
+    ) {
 
-        Long organizationId = joinRequest.getOrganization().getId();
-        Long authUserId = joinRequest.getAuthUserId();
+        Long organizationId =
+                joinRequest.getOrganization().getId();
 
-        OrganizationMembership existing = membershipRepository
-                .findByOrganizationIdAndAuthUserId(organizationId, authUserId)
-                .orElse(null);
+        Long authUserId =
+                joinRequest.getAuthUserId();
 
-        if (existing != null && existing.getMembershipStatus() == MembershipStatus.ACTIVE) {
-            log.warn("Approval rejected: user {} is already an active member of {}",
-                    authUserId, organizationId);
+        OrganizationMembership existing =
+                membershipRepository
+                        .findByOrganizationIdAndAuthUserId(
+                                organizationId,
+                                authUserId
+                        )
+                        .orElse(null);
+
+        if (existing != null
+                && existing.getMembershipStatus()
+                == MembershipStatus.ACTIVE) {
+
+            log.warn(
+                    "Approval rejected: user {} is already an active member of organization {}",
+                    authUserId,
+                    organizationId
+            );
+
             throw new DuplicateResourceException(
-                    "Membership", "organizationId, authUserId",
-                    organizationId + ", " + authUserId);
+                    "Membership",
+                    "organizationId, authUserId",
+                    organizationId + ", " + authUserId
+            );
         }
 
         if (existing != null) {
-            // Reactivate the soft-removed / suspended membership row.
-            existing.setMembershipStatus(MembershipStatus.ACTIVE);
-            existing.setMembershipRole(joinRequest.getRequestedRole());
-            existing.setJoinedAt(LocalDateTime.now());
+
+            /*
+             * Reactivate a previously suspended or removed membership.
+             */
+            existing.setMembershipStatus(
+                    MembershipStatus.ACTIVE
+            );
+
+            existing.setMembershipRole(
+                    joinRequest.getRequestedRole()
+            );
+
+            existing.setJoinedAt(
+                    LocalDateTime.now()
+            );
+
             membershipRepository.save(existing);
+
             return;
         }
 
-        OrganizationMembership membership = OrganizationMembership.builder()
-                .organization(joinRequest.getOrganization())
-                .authUserId(authUserId)
-                .membershipRole(joinRequest.getRequestedRole())
-                .membershipStatus(MembershipStatus.ACTIVE)
-                .build();
+        OrganizationMembership membership =
+                OrganizationMembership.builder()
+                        .organization(joinRequest.getOrganization())
+                        .authUserId(authUserId)
+                        .membershipRole(joinRequest.getRequestedRole())
+                        .membershipStatus(MembershipStatus.ACTIVE)
+                        .build();
 
         membershipRepository.save(membership);
     }
 
-    private void validateRequestedRole(MembershipRole requestedRole) {
+    /*
+     * OWNER and ORGANIZATION_ADMIN cannot be requested through a join request.
+     */
+    private void validateRequestedRole(
+            MembershipRole requestedRole
+    ) {
 
         if (requestedRole == MembershipRole.OWNER
-                || requestedRole == MembershipRole.ORGANIZATION_ADMIN) {
+                || requestedRole
+                == MembershipRole.ORGANIZATION_ADMIN) {
+
             throw new BadRequestException(
-                    "requestedRole cannot be OWNER or ORGANIZATION_ADMIN");
+                    "requestedRole cannot be OWNER or ORGANIZATION_ADMIN"
+            );
         }
     }
 }
