@@ -16,14 +16,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Web-layer tests for {@link OrganizationAdminController}: system-ADMIN
- * listing, suspend and activate.
+ * listing, suspend and activate operations.
  */
 @WebMvcTest(OrganizationAdminController.class)
 @Import(SecurityConfig.class)
@@ -46,8 +49,11 @@ class OrganizationAdminControllerTest {
                 .build();
 
         when(organizationService.getAllOrganizationsForAdmin(
-                eq("ADMIN"), isNull(), isNull(), any()))
-                .thenReturn(new PageImpl<>(List.of(response)));
+                eq("ADMIN"),
+                isNull(),
+                isNull(),
+                any()
+        )).thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/admin/organizations")
                         .header("X-User-Id", "1")
@@ -76,8 +82,10 @@ class OrganizationAdminControllerTest {
                 .id(1L)
                 .build();
 
-        when(organizationService.getOrganizationForAdmin("ADMIN", 1L))
-                .thenReturn(response);
+        when(organizationService.getOrganizationForAdmin(
+                eq("ADMIN"),
+                eq(1L)
+        )).thenReturn(response);
 
         mockMvc.perform(get("/api/admin/organizations/1")
                         .header("X-User-Id", "1")
@@ -95,8 +103,10 @@ class OrganizationAdminControllerTest {
                 .status(OrganizationStatus.SUSPENDED)
                 .build();
 
-        when(organizationService.suspendOrganizationForAdmin("ADMIN", 1L))
-                .thenReturn(response);
+        when(organizationService.suspendOrganizationForAdmin(
+                eq("ADMIN"),
+                eq(1L)
+        )).thenReturn(response);
 
         mockMvc.perform(patch("/api/admin/organizations/1/suspend")
                         .header("X-User-Id", "1")
@@ -114,8 +124,10 @@ class OrganizationAdminControllerTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build();
 
-        when(organizationService.activateOrganizationForAdmin("ADMIN", 1L))
-                .thenReturn(response);
+        when(organizationService.activateOrganizationForAdmin(
+                eq("ADMIN"),
+                eq(1L)
+        )).thenReturn(response);
 
         mockMvc.perform(patch("/api/admin/organizations/1/activate")
                         .header("X-User-Id", "1")
