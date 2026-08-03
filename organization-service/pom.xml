@@ -29,23 +29,28 @@
     </description>
 
     <properties>
-        <!-- Java 25 for modern language features (matches all existing VOLTARAS services) -->
+
+        <!-- Java version used across VOLTARAS services -->
         <java.version>25</java.version>
 
-        <!-- Spring Cloud 2025.0.3 matches Spring Boot 3.5.5 -->
+        <!-- Spring Cloud version compatible with Spring Boot 3.5.x -->
         <spring-cloud.version>2025.0.3</spring-cloud.version>
 
-        <!-- Lombok 1.18.46 reduces boilerplate (getters, setters, constructors) -->
+        <!-- Lombok version -->
         <lombok.version>1.18.46</lombok.version>
 
-        <!-- MapStruct 1.6.3 for entity <-> DTO mapping -->
+        <!-- MapStruct version -->
         <mapstruct.version>1.6.3</mapstruct.version>
+
+        <!-- Springdoc OpenAPI / Swagger UI version -->
+        <springdoc.version>2.8.17</springdoc.version>
+
     </properties>
 
     <dependencyManagement>
         <dependencies>
 
-            <!-- Spring Cloud BOM imports cloud dependency versions -->
+            <!-- Spring Cloud BOM -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -59,69 +64,80 @@
 
     <dependencies>
 
-        <!--
-            Spring Boot Starters
-            ====================
-        -->
+        <!-- ========================================================= -->
+        <!-- Spring Boot Starters                                      -->
+        <!-- ========================================================= -->
 
-        <!-- REST API support (Tomcat, Jackson, MVC) -->
+        <!-- REST API support using Spring MVC and embedded Tomcat -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Jakarta Bean Validation (@NotBlank, @Pattern, @PositiveOrZero, ...) -->
+        <!-- Jakarta Bean Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- JPA/Hibernate ORM for database access -->
+        <!-- Spring Data JPA and Hibernate -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Spring Security (customized at implementation time; the service trusts
-             gateway headers and does not validate JWTs itself) -->
+        <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- Health checks & monitoring -->
+        <!-- Health checks and monitoring -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!--
-            Spring Cloud Starters
-            =====================
-        -->
+        <!-- ========================================================= -->
+        <!-- OpenAPI and Swagger UI                                    -->
+        <!-- ========================================================= -->
 
-        <!-- Eureka Client: registers this service with Eureka Server -->
+        <!--
+            Generates OpenAPI documentation and provides Swagger UI
+            for Spring MVC applications.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- ========================================================= -->
+        <!-- Spring Cloud                                              -->
+        <!-- ========================================================= -->
+
+        <!-- Registers organization-service with Eureka Server -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
-        <!--
-            Database
-            ========
-        -->
-        <!-- MySQL Connector: JDBC driver for MySQL 8.x -->
+        <!-- ========================================================= -->
+        <!-- Database                                                  -->
+        <!-- ========================================================= -->
+
+        <!-- MySQL JDBC driver -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!--
-            Developer Tools
-            ===============
-        -->
-        <!-- Lombok: @Data, @Builder, @RequiredArgsConstructor, etc. -->
+        <!-- ========================================================= -->
+        <!-- Developer Tools                                           -->
+        <!-- ========================================================= -->
+
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -129,25 +145,25 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- MapStruct: compile-time entity <-> DTO mapping -->
+        <!-- MapStruct -->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
             <version>${mapstruct.version}</version>
         </dependency>
 
-        <!-- Spring Boot Configuration Processor: metadata for @ConfigurationProperties -->
+        <!-- Generates configuration metadata -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!--
-            Testing
-            =======
-        -->
-        <!-- JUnit 5, Mockito, AssertJ and MockMvc for unit and web-layer tests -->
+        <!-- ========================================================= -->
+        <!-- Testing                                                   -->
+        <!-- ========================================================= -->
+
+        <!-- JUnit 5, Mockito, AssertJ and MockMvc -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -158,46 +174,55 @@
 
     <build>
 
-        <!-- Final JAR name (without version suffix) -->
+        <!-- Final generated JAR name -->
         <finalName>organization-service</finalName>
 
         <plugins>
 
+            <!-- Java compilation and annotation processors -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
 
                 <configuration>
+
                     <release>${java.version}</release>
 
                     <annotationProcessorPaths>
+
                         <!-- Lombok annotation processor -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
                         </path>
+
                         <!-- MapStruct annotation processor -->
                         <path>
                             <groupId>org.mapstruct</groupId>
                             <artifactId>mapstruct-processor</artifactId>
                             <version>${mapstruct.version}</version>
                         </path>
+
                     </annotationProcessorPaths>
+
                 </configuration>
             </plugin>
 
+            <!-- Builds executable Spring Boot JAR -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
 
                 <configuration>
                     <excludes>
-                        <!-- Exclude Lombok from the final JAR -->
+
+                        <!-- Lombok is required only during compilation -->
                         <exclude>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                         </exclude>
+
                     </excludes>
                 </configuration>
             </plugin>
