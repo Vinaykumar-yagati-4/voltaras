@@ -5,28 +5,42 @@ spring:
   application:
     name: organization-service
 
-  # ---- Datasource (placeholders only — no hardcoded credentials) ----
+  # ==============================================================
+  # Datasource Configuration
+  # ==============================================================
+
+  # Credentials are read from environment variables.
+  # No database password is hardcoded in this file.
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:organization_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # ---- JPA (placeholders only) ----
+  # ==============================================================
+  # JPA / Hibernate Configuration
+  # ==============================================================
+
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:update}
+
     show-sql: ${JPA_SHOW_SQL:true}
     open-in-view: false
+
     properties:
       hibernate:
         format_sql: true
 
-# ---- Eureka Client ----
+# ==============================================================
+# Eureka Client Configuration
+# ==============================================================
+
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
+
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
@@ -34,7 +48,10 @@ eureka:
     hostname: localhost
     prefer-ip-address: true
 
-# ---- Actuator ----
+# ==============================================================
+# Actuator Configuration
+# ==============================================================
+
 management:
   endpoints:
     web:
@@ -45,8 +62,42 @@ management:
     health:
       show-details: always
 
+# ==============================================================
+# Swagger / OpenAPI Configuration
+# ==============================================================
+
+springdoc:
+
+  # Generates the OpenAPI JSON description.
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+  # Provides the browser-based Swagger testing interface.
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+    # Display API operations in HTTP-method order.
+    operations-sorter: method
+
+    # Display controller groups alphabetically.
+    tags-sorter: alpha
+
+    # Keep each controller section closed when Swagger opens.
+    doc-expansion: none
+
+    # Do not show Swagger's default example server.
+    disable-swagger-default-url: true
+
+  # Do not include Actuator endpoints in the application API documentation.
+  show-actuator: false
+
+# ==============================================================
+# Logging Configuration
+# ==============================================================
+
 logging:
   level:
     org.hibernate.SQL: ${LOG_HIBERNATE_SQL:WARN}
     com.voltaras.organizationservice: ${LOG_APP_LEVEL:INFO}
-
