@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -23,40 +24,83 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
-            // Disable CSRF (not needed for JWT-based REST APIs)
-            .csrf(csrf -> csrf.disable())
 
-            // Set session management to stateless (no HttpSession)
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Disable CSRF for REST APIs
+                .csrf(csrf -> csrf.disable())
 
-            // Configure authorization rules
-            .authorizeHttpRequests(auth -> auth
-                // Public endpoints
-                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                // Actuator endpoints
-                .requestMatchers("/actuator/**").permitAll()
-                // All other endpoints require authentication
-                .anyRequest().authenticated()
-            )
+                // Enable CORS with default configuration
+                .cors(Customizer.withDefaults())
 
-            // Add JWT authentication filter BEFORE Spring's own filter
-            // This ensures JWT is validated before Spring checks authentication
-            .addFilterBefore(jwtAuthenticationFilter,
-                    UsernamePasswordAuthenticationFilter.class);
+                // JWT authentication does not use HTTP Session
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // Authorization rules
+                .authorizeHttpRequests(auth -> auth
+
+                        /*
+                         * Swagger UI
+                         */
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
+                        /*
+                         * Public Authentication APIs
+                         */
+                        .requestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/refresh-token"
+                        ).permitAll()
+
+                        /*
+                         * Spring Boot Actuator
+                         */
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
+
+                        /*
+                         * Everything else requires JWT
+                         */
+                        .anyRequest()
+                        .authenticated()
+                )
+
+                /*
+                 * JWT Filter
+                 */
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
+
+                /*
+                 * Disable default login pages
+                 */
+                .httpBasic(httpBasic -> httpBasic.disable())
+
+                .formLogin(form -> form.disable());
 
         return http.build();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+
         return new BCryptPasswordEncoder();
     }
 
     @Bean
     public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+            AuthenticationConfiguration configuration
+    ) throws Exception {
+
+        return configuration.getAuthenticationManager();
     }
 }
