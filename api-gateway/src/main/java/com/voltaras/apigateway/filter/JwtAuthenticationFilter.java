@@ -5,6 +5,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -19,7 +20,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final JwtService jwtService;
 
-    // Spring automatically injects JwtService through this constructor.
     public JwtAuthenticationFilter(JwtService jwtService) {
         this.jwtService = jwtService;
     }
@@ -35,7 +35,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .getURI()
                 .getPath();
 
-        // These endpoints do not require a JWT token.
+        HttpMethod requestMethod = exchange
+                .getRequest()
+                .getMethod();
+
+        if (HttpMethod.OPTIONS.equals(requestMethod)) {
+            return chain.filter(exchange);
+        }
+
         if (isPublicEndpoint(requestPath)) {
             return chain.filter(exchange);
         }
@@ -54,10 +61,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             );
         }
 
-        String token = authorizationHeader.substring(7);
+        String token = authorizationHeader
+                .substring(7)
+                .trim();
+
+        if (token.isBlank()) {
+            return unauthorizedResponse(
+                    exchange,
+                    "Bearer token is missing"
+            );
+        }
 
         if (!jwtService.isValidAccessToken(token)) {
-
             return unauthorizedResponse(
                     exchange,
                     "Invalid or expired access token"
@@ -74,12 +89,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .mutate()
                     .headers(headers -> {
 
-                        // Prevent clients from sending fake user headers.
                         headers.remove("X-User-Id");
                         headers.remove("X-User-Email");
                         headers.remove("X-User-Role");
 
-                        // Add details extracted from the verified JWT.
                         headers.set(
                                 "X-User-Id",
                                 String.valueOf(userId)
@@ -115,9 +128,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private boolean isPublicEndpoint(String path) {
 
-        return path.equals("/api/auth/signup")
+        return path.equals("/api/auth/register")
                 || path.equals("/api/auth/login")
-                || path.equals("/api/auth/refresh")
+                || path.equals("/api/auth/refresh-token")
                 || path.equals("/actuator")
                 || path.startsWith("/actuator/");
     }

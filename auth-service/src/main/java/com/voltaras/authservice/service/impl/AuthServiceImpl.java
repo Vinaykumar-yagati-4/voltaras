@@ -2,8 +2,10 @@ package com.voltaras.authservice.service.impl;
 
 import com.voltaras.authservice.dto.request.ChangePasswordRequest;
 import com.voltaras.authservice.dto.request.LoginRequest;
+import com.voltaras.authservice.dto.request.RefreshTokenRequest;
 import com.voltaras.authservice.dto.request.RegisterRequest;
 import com.voltaras.authservice.dto.response.AuthResponse;
+import com.voltaras.authservice.dto.response.RefreshTokenResponse;
 import com.voltaras.authservice.dto.response.UserInfoResponse;
 import com.voltaras.authservice.entity.Role;
 import com.voltaras.authservice.entity.User;
@@ -12,6 +14,7 @@ import com.voltaras.authservice.enums.RoleType;
 import com.voltaras.authservice.exception.BadRequestException;
 import com.voltaras.authservice.exception.DuplicateResourceException;
 import com.voltaras.authservice.exception.ResourceNotFoundException;
+import com.voltaras.authservice.exception.UnauthorizedException;
 import com.voltaras.authservice.repository.RoleRepository;
 import com.voltaras.authservice.repository.UserRepository;
 import com.voltaras.authservice.security.JwtTokenProvider;
@@ -47,24 +50,29 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
 
-        // Step 1: Validate password and confirm password
-        if (!request.getPassword().equals(request.getConfirmPassword())) {
-            throw new BadRequestException("Passwords do not match");
+        if (!request.getPassword()
+                .equals(request.getConfirmPassword())) {
+
+            throw new BadRequestException(
+                    "Passwords do not match"
+            );
         }
 
-        // Step 2: Validate full name
         if (request.getFullName() == null ||
                 request.getFullName().trim().isEmpty()) {
 
-            throw new BadRequestException("Full name is required");
+            throw new BadRequestException(
+                    "Full name is required"
+            );
         }
 
-        // Step 3: Normalize the email
         String normalizedEmail =
-                request.getEmail().toLowerCase().trim();
+                request.getEmail()
+                        .toLowerCase()
+                        .trim();
 
-        // Step 4: Check email uniqueness
         if (userRepository.existsByEmail(normalizedEmail)) {
+
             throw new DuplicateResourceException(
                     "User",
                     "email",
@@ -72,21 +80,19 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // Step 5: Hash password using BCrypt
         String hashedPassword =
-                passwordEncoder.encode(request.getPassword());
+                passwordEncoder.encode(
+                        request.getPassword()
+                );
 
-        // Step 6: Find default CONSUMER role
         Role consumerRole = roleRepository
                 .findByName(RoleType.CONSUMER)
                 .orElseThrow(() ->
-                        new RuntimeException(
-                                "Default role CONSUMER not found. " +
-                                        "Seed the roles table first."
+                        new IllegalStateException(
+                                "Default role CONSUMER was not found"
                         )
                 );
 
-        // Step 7: Create the User entity
         User user = User.builder()
                 .fullName(request.getFullName().trim())
                 .email(normalizedEmail)
@@ -94,7 +100,6 @@ public class AuthServiceImpl implements AuthService {
                 .isActive(true)
                 .build();
 
-        // Step 8: Create UserRole junction entity
         UserRole userRole = UserRole.builder()
                 .user(user)
                 .role(consumerRole)
@@ -102,8 +107,6 @@ public class AuthServiceImpl implements AuthService {
 
         user.setUserRoles(Set.of(userRole));
 
-        // Step 9: Save User
-        // Cascade will also save UserRole
         User savedUser = userRepository.save(user);
 
         log.info(
@@ -112,14 +115,14 @@ public class AuthServiceImpl implements AuthService {
                 RoleType.CONSUMER
         );
 
-        // Step 10: Return registration response
-        // Token is not generated during registration
         return AuthResponse.builder()
                 .userId(savedUser.getId())
                 .fullName(savedUser.getFullName())
                 .email(savedUser.getEmail())
                 .role(RoleType.CONSUMER.name())
-                .message("Registration successful. Please log in.")
+                .message(
+                        "Registration successful. Please log in."
+                )
                 .build();
     }
 
@@ -127,11 +130,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
 
-        // Step 1: Normalize email
         String normalizedEmail =
-                request.getEmail().toLowerCase().trim();
+                request.getEmail()
+                        .toLowerCase()
+                        .trim();
 
-        // Step 2: Authenticate using Spring Security
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -142,7 +145,6 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (BadCredentialsException exception) {
 
-            // Do not reveal whether email or password is incorrect
             throw new BadCredentialsException(
                     "Invalid email or password"
             );
@@ -154,7 +156,6 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // Step 3: Load authenticated user
         User user = userRepository
                 .findByEmail(normalizedEmail)
                 .orElseThrow(() ->
@@ -165,26 +166,17 @@ public class AuthServiceImpl implements AuthService {
                         )
                 );
 
-        // Step 4: Update last login date and time
         user.setLastLoginAt(LocalDateTime.now());
 
         userRepository.save(user);
 
-        // Step 5: Generate JWT token
-        String token =
-                jwtTokenProvider.generateToken(user);
+        String accessToken =
+                jwtTokenProvider.generateAccessToken(user);
 
-        // Step 6: Extract user role
-        String role = user.getUserRoles()
-                .stream()
-                .findFirst()
-                .map(userRole ->
-                        userRole
-                                .getRole()
-                                .getName()
-                                .name()
-                )
-                .orElse(RoleType.CONSUMER.name());
+        String refreshToken =
+                jwtTokenProvider.generateRefreshToken(user);
+
+        String role = extractRole(user);
 
         log.info(
                 "User logged in: email={}, role={}",
@@ -192,12 +184,19 @@ public class AuthServiceImpl implements AuthService {
                 role
         );
 
-        // Step 7: Return login response with JWT
         return AuthResponse.builder()
-                .token(token)
+                .token(accessToken)
+                .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(
-                        jwtTokenProvider.getExpirationMs() / 1000
+                        jwtTokenProvider
+                                .getAccessTokenExpirationMs()
+                                / 1000
+                )
+                .refreshTokenExpiresIn(
+                        jwtTokenProvider
+                                .getRefreshTokenExpirationMs()
+                                / 1000
                 )
                 .userId(user.getId())
                 .fullName(user.getFullName())
@@ -208,13 +207,95 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RefreshTokenResponse refreshToken(
+            RefreshTokenRequest request
+    ) {
+
+        String refreshToken =
+                request.getRefreshToken().trim();
+
+        /*
+         * Reject access tokens, expired tokens and tokens with
+         * invalid signatures.
+         */
+        if (!jwtTokenProvider.validateRefreshToken(
+                refreshToken
+        )) {
+
+            throw new UnauthorizedException(
+                    "Invalid or expired refresh token"
+            );
+        }
+
+        String email =
+                jwtTokenProvider.getEmailFromToken(
+                        refreshToken
+                );
+
+        User user = userRepository
+                .findByEmail(email.toLowerCase().trim())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User",
+                                "email",
+                                email
+                        )
+                );
+
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+
+            throw new UnauthorizedException(
+                    "User account is inactive"
+            );
+        }
+
+        /*
+         * Refresh-token rotation:
+         * create both a new access token and a new refresh token.
+         */
+        String newAccessToken =
+                jwtTokenProvider.generateAccessToken(user);
+
+        String newRefreshToken =
+                jwtTokenProvider.generateRefreshToken(user);
+
+        String role = extractRole(user);
+
+        log.info(
+                "Tokens refreshed for userId={}, email={}",
+                user.getId(),
+                user.getEmail()
+        );
+
+        return RefreshTokenResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .tokenType("Bearer")
+                .accessTokenExpiresIn(
+                        jwtTokenProvider
+                                .getAccessTokenExpirationMs()
+                                / 1000
+                )
+                .refreshTokenExpiresIn(
+                        jwtTokenProvider
+                                .getRefreshTokenExpirationMs()
+                                / 1000
+                )
+                .userId(user.getId())
+                .role(role)
+                .email(user.getEmail())
+                .message("Tokens refreshed successfully")
+                .build();
+    }
+
+    @Override
     @Transactional
     public void changePassword(
             Long userId,
             ChangePasswordRequest request
     ) {
 
-        // Step 1: Check new password and confirmation
         if (!request.getNewPassword()
                 .equals(request.getConfirmNewPassword())) {
 
@@ -223,7 +304,6 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // Step 2: Load user
         User user = userRepository
                 .findById(userId)
                 .orElseThrow(() ->
@@ -234,7 +314,6 @@ public class AuthServiceImpl implements AuthService {
                         )
                 );
 
-        // Step 3: Validate existing password
         if (!passwordEncoder.matches(
                 request.getCurrentPassword(),
                 user.getPasswordHash()
@@ -245,7 +324,6 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // Step 4: Hash and update new password
         user.setPasswordHash(
                 passwordEncoder.encode(
                         request.getNewPassword()
@@ -277,16 +355,7 @@ public class AuthServiceImpl implements AuthService {
                         )
                 );
 
-        String role = user.getUserRoles()
-                .stream()
-                .findFirst()
-                .map(userRole ->
-                        userRole
-                                .getRole()
-                                .getName()
-                                .name()
-                )
-                .orElse(RoleType.CONSUMER.name());
+        String role = extractRole(user);
 
         return UserInfoResponse.builder()
                 .userId(user.getId())
@@ -296,5 +365,22 @@ public class AuthServiceImpl implements AuthService {
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Extracts the first assigned role from the user.
+     */
+    private String extractRole(User user) {
+
+        return user.getUserRoles()
+                .stream()
+                .findFirst()
+                .map(userRole ->
+                        userRole
+                                .getRole()
+                                .getName()
+                                .name()
+                )
+                .orElse(RoleType.CONSUMER.name());
     }
 }

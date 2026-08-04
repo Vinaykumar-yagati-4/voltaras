@@ -1,6 +1,7 @@
 package com.voltaras.authservice.security;
 
 import com.voltaras.authservice.entity.User;
+import com.voltaras.authservice.enums.RoleType;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -20,35 +21,86 @@ public class JwtTokenProvider {
     private static final Logger log =
             LoggerFactory.getLogger(JwtTokenProvider.class);
 
+    private static final String ACCESS_TOKEN_TYPE = "ACCESS";
+    private static final String REFRESH_TOKEN_TYPE = "REFRESH";
+
     private final SecretKey secretKey;
-    private final long expirationMs;
+    private final long accessTokenExpirationMs;
+    private final long refreshTokenExpirationMs;
 
     /**
-     * Creates the JWT signing key using the Base64 secret
-     * configured in application.yml.
+     * Creates the JWT signing key and reads both token expiration periods.
      */
     public JwtTokenProvider(
             @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiration}") long expirationMs
+            @Value("${app.jwt.expiration}") long accessTokenExpirationMs,
+            @Value("${app.jwt.refresh-expiration}") long refreshTokenExpirationMs
     ) {
 
         byte[] keyBytes = Decoders.BASE64.decode(secret);
 
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
-        this.expirationMs = expirationMs;
+        this.accessTokenExpirationMs = accessTokenExpirationMs;
+        this.refreshTokenExpirationMs = refreshTokenExpirationMs;
     }
 
     /**
-     * Generates an access token for the authenticated user.
+     * Generates a short-lived access token.
      */
-    public String generateToken(User user) {
+    public String generateAccessToken(User user) {
 
-        Date now = new Date();
+        return generateToken(
+                user,
+                ACCESS_TOKEN_TYPE,
+                accessTokenExpirationMs
+        );
+    }
 
-        Date expiryDate =
-                new Date(now.getTime() + expirationMs);
+    /**
+     * Generates a long-lived refresh token.
+     */
+    public String generateRefreshToken(User user) {
 
-        String role = user.getUserRoles()
+        return generateToken(
+                user,
+                REFRESH_TOKEN_TYPE,
+                refreshTokenExpirationMs
+        );
+    }
+
+    /**
+     * Common method used to generate access and refresh tokens.
+     */
+    private String generateToken(
+            User user,
+            String tokenType,
+            long expiration
+    ) {
+
+        Date issuedAt = new Date();
+
+        Date expiresAt =
+                new Date(issuedAt.getTime() + expiration);
+
+        String role = extractRoleFromUser(user);
+
+        return Jwts.builder()
+                .subject(user.getEmail())
+                .claim("userId", user.getId())
+                .claim("role", role)
+                .claim("tokenType", tokenType)
+                .issuedAt(issuedAt)
+                .expiration(expiresAt)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    /**
+     * Extracts the user's role from the UserRole relationship.
+     */
+    private String extractRoleFromUser(User user) {
+
+        return user.getUserRoles()
                 .stream()
                 .findFirst()
                 .map(userRole ->
@@ -57,21 +109,11 @@ public class JwtTokenProvider {
                                 .getName()
                                 .name()
                 )
-                .orElse("CONSUMER");
-
-        return Jwts.builder()
-                .subject(user.getEmail())
-                .claim("userId", user.getId())
-                .claim("role", role)
-                .claim("tokenType", "ACCESS")
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(secretKey)
-                .compact();
+                .orElse(RoleType.CONSUMER.name());
     }
 
     /**
-     * Extracts email from JWT subject.
+     * Extracts email from the JWT subject.
      */
     public String getEmailFromToken(String token) {
 
@@ -79,19 +121,11 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Extracts the authenticated user's ID.
+     * Extracts the user ID from the token.
      */
     public Long getUserIdFromToken(String token) {
 
         Object userId = parseClaims(token).get("userId");
-
-        if (userId instanceof Integer integerValue) {
-            return integerValue.longValue();
-        }
-
-        if (userId instanceof Long longValue) {
-            return longValue;
-        }
 
         if (userId instanceof Number numberValue) {
             return numberValue.longValue();
@@ -101,7 +135,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Extracts user role.
+     * Extracts the role from the token.
      */
     public String getRoleFromToken(String token) {
 
@@ -110,7 +144,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Extracts token type.
+     * Extracts ACCESS or REFRESH token type.
      */
     public String getTokenTypeFromToken(String token) {
 
@@ -119,7 +153,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Validates JWT signature and expiration.
+     * Validates signature, structure and expiration.
      */
     public boolean validateToken(String token) {
 
@@ -129,7 +163,7 @@ public class JwtTokenProvider {
 
         } catch (JwtException | IllegalArgumentException exception) {
 
-            log.error(
+            log.warn(
                     "Invalid JWT token: {}",
                     exception.getMessage()
             );
@@ -139,22 +173,50 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Validates whether the JWT is an ACCESS token.
+     * Validates that the supplied token is an ACCESS token.
      */
     public boolean validateAccessToken(String token) {
+
+        return validateTokenType(
+                token,
+                ACCESS_TOKEN_TYPE
+        );
+    }
+
+    /**
+     * Validates that the supplied token is a REFRESH token.
+     */
+    public boolean validateRefreshToken(String token) {
+
+        return validateTokenType(
+                token,
+                REFRESH_TOKEN_TYPE
+        );
+    }
+
+    /**
+     * Validates token signature, expiration and tokenType claim.
+     */
+    private boolean validateTokenType(
+            String token,
+            String requiredTokenType
+    ) {
 
         try {
             Claims claims = parseClaims(token);
 
-            String tokenType =
+            String actualTokenType =
                     claims.get("tokenType", String.class);
 
-            return "ACCESS".equalsIgnoreCase(tokenType);
+            return requiredTokenType.equalsIgnoreCase(
+                    actualTokenType
+            );
 
         } catch (JwtException | IllegalArgumentException exception) {
 
-            log.error(
-                    "Invalid access token: {}",
+            log.warn(
+                    "Invalid {} token: {}",
+                    requiredTokenType,
                     exception.getMessage()
             );
 
@@ -163,7 +225,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Parses all JWT claims and validates the signature.
+     * Parses claims and verifies the JWT signature.
      */
     private Claims parseClaims(String token) {
 
@@ -174,8 +236,21 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
+    public long getAccessTokenExpirationMs() {
+
+        return accessTokenExpirationMs;
+    }
+
+    public long getRefreshTokenExpirationMs() {
+
+        return refreshTokenExpirationMs;
+    }
+
+    /**
+     * Kept temporarily for compatibility with existing code.
+     */
     public long getExpirationMs() {
 
-        return expirationMs;
+        return accessTokenExpirationMs;
     }
 }

@@ -9,15 +9,15 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuthResponse {
+public class RefreshTokenResponse {
 
-    private String token;
+    private String accessToken;
 
     private String refreshToken;
 
     private String tokenType;
 
-    private long expiresIn;
+    private long accessTokenExpiresIn;
 
     private long refreshTokenExpiresIn;
 
@@ -26,8 +26,6 @@ public class AuthResponse {
     private String role;
 
     private String email;
-
-    private String fullName;
 
     private String message;
 }
