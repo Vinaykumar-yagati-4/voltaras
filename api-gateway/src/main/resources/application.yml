@@ -9,6 +9,67 @@ spring:
     gateway:
       server:
         webflux:
+
+          # ==========================================================
+          # Global CORS Configuration (SINGLE source of truth)
+          # ==========================================================
+
+          globalcors:
+            # Applies CORS rules even when an OPTIONS request
+            # does not match a normal route predicate.
+            add-to-simple-url-handler-mapping: true
+
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  # Frontend development servers
+                  - "http://localhost:3000"
+                  - "http://127.0.0.1:3000"
+                  - "http://localhost:5173"
+                  - "http://127.0.0.1:5173"
+
+                  # Swagger UIs of individual services
+                  - "http://localhost:8081"
+                  - "http://127.0.0.1:8081"
+                  - "http://localhost:8082"
+                  - "http://127.0.0.1:8082"
+                  - "http://localhost:8083"
+                  - "http://127.0.0.1:8083"
+                  - "http://localhost:8084"
+                  - "http://127.0.0.1:8084"
+                  - "http://localhost:8085"
+                  - "http://127.0.0.1:8085"
+
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+
+                allowedHeaders:
+                  - Authorization
+                  - Content-Type
+                  - Accept
+                  - Origin
+                  - X-User-Id
+                  - X-User-Role
+                  - X-Requested-With
+                  - X-Correlation-Id
+
+                exposedHeaders:
+                  - Authorization
+                  - X-User-Id
+                  - X-User-Role
+
+                allowCredentials: true
+                maxAge: 3600
+
+          # ==========================================================
+          # Gateway Routes
+          # ==========================================================
+
           routes:
 
             # Auth Service
@@ -35,15 +96,30 @@ spring:
               predicates:
                 - Path=/api/organizations/**,/api/buildings/**,/api/blocks/**,/api/floors/**,/api/units/**,/api/admin/organizations/**
 
+            # Bill Service
+            - id: bill-service
+              uri: lb://BILL-SERVICE
+              predicates:
+                - Path=/api/bills/**
+
+# ==============================================================
+# Eureka Client Configuration
+# ==============================================================
+
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
+
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
   instance:
     prefer-ip-address: true
+
+# ==============================================================
+# Actuator Configuration
+# ==============================================================
 
 management:
   endpoints:
