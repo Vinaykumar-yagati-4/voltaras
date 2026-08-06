@@ -1,0 +1,104 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: bill-service
+
+  # ==============================================================
+  # Datasource Configuration
+  # ==============================================================
+
+  # Credentials are read from environment variables.
+  # No database password is hardcoded in this file.
+  datasource:
+    url: jdbc:mysql://localhost:3306/bill_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${BILL_DB_USERNAME:root}
+    password: ${BILL_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ==============================================================
+  # JPA / Hibernate Configuration
+  # ==============================================================
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    show-sql: ${JPA_SHOW_SQL:true}
+    open-in-view: false
+
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+# ==============================================================
+# Eureka Client Configuration
+# ==============================================================
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+
+# ==============================================================
+# Actuator Configuration
+# ==============================================================
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+# ==============================================================
+# Swagger / OpenAPI Configuration
+# ==============================================================
+
+springdoc:
+
+  # Generates the OpenAPI JSON description.
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+  # Provides the browser-based Swagger testing interface.
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+    # Display API operations in HTTP-method order.
+    operations-sorter: method
+
+    # Display controller groups alphabetically.
+    tags-sorter: alpha
+
+    # Keep each controller section closed when Swagger opens.
+    doc-expansion: none
+
+    # Do not show Swagger's default example server.
+    disable-swagger-default-url: true
+
+  # Do not include Actuator endpoints in the application API documentation.
+  show-actuator: false
+
+# ==============================================================
+# Logging Configuration
+# ==============================================================
+
+logging:
+  level:
+    org.hibernate.SQL: ${LOG_HIBERNATE_SQL:WARN}
+    com.voltaras.billservice: ${LOG_APP_LEVEL:INFO}
