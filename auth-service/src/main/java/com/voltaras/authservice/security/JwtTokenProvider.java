@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -45,36 +46,51 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Generates a short-lived access token.
+     * Generates a short-lived access token bound to the given session.
+     * The sessionId is embedded as the "sid" claim so logout can
+     * revoke the matching refresh session.
      */
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(
+            User user,
+            String sessionId
+    ) {
 
         return generateToken(
                 user,
                 ACCESS_TOKEN_TYPE,
-                accessTokenExpirationMs
+                accessTokenExpirationMs,
+                sessionId
         );
     }
 
     /**
-     * Generates a long-lived refresh token.
+     * Generates a long-lived refresh token bound to the same session
+     * as its matching access token.
      */
-    public String generateRefreshToken(User user) {
+    public String generateRefreshToken(
+            User user,
+            String sessionId
+    ) {
 
         return generateToken(
                 user,
                 REFRESH_TOKEN_TYPE,
-                refreshTokenExpirationMs
+                refreshTokenExpirationMs,
+                sessionId
         );
     }
 
     /**
      * Common method used to generate access and refresh tokens.
+     *
+     * Each token carries a random jti and the session's secure
+     * identifier (sid) shared by the access/refresh pair.
      */
     private String generateToken(
             User user,
             String tokenType,
-            long expiration
+            long expiration,
+            String sessionId
     ) {
 
         Date issuedAt = new Date();
@@ -85,10 +101,12 @@ public class JwtTokenProvider {
         String role = extractRoleFromUser(user);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
                 .claim("role", role)
                 .claim("tokenType", tokenType)
+                .claim("sid", sessionId)
                 .issuedAt(issuedAt)
                 .expiration(expiresAt)
                 .signWith(secretKey)
@@ -97,8 +115,15 @@ public class JwtTokenProvider {
 
     /**
      * Extracts the user's role from the UserRole relationship.
+     * Falls back to CONSUMER when the user has no roles.
      */
     private String extractRoleFromUser(User user) {
+
+        if (user.getUserRoles() == null
+                || user.getUserRoles().isEmpty()) {
+
+            return RoleType.CONSUMER.name();
+        }
 
         return user.getUserRoles()
                 .stream()
@@ -121,17 +146,32 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Extracts the user ID from the token.
+     * Extracts the user ID from the token, or null when the claim is
+     * missing.
      */
     public Long getUserIdFromToken(String token) {
 
         Object userId = parseClaims(token).get("userId");
+
+        if (userId == null) {
+            return null;
+        }
 
         if (userId instanceof Number numberValue) {
             return numberValue.longValue();
         }
 
         return Long.valueOf(userId.toString());
+    }
+
+    /**
+     * Extracts the secure session identifier (sid claim) from the
+     * token, or null when the claim is missing.
+     */
+    public String getSessionIdFromToken(String token) {
+
+        return parseClaims(token)
+                .get("sid", String.class);
     }
 
     /**

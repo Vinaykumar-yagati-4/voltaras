@@ -11,6 +11,12 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -29,6 +35,41 @@ app:
 
     # Refresh token expires after 7 days
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+  # ------------------------------------------------------------------
+  # Server-side refresh-token sessions (rotation + logout revocation)
+  # ------------------------------------------------------------------
+  refresh-token:
+
+    # How often the cleanup job purges expired/revoked records.
+    cleanup-interval-ms: ${REFRESH_TOKEN_CLEANUP_INTERVAL_MS:3600000}
+
+    # Revoked records older than this many days are deleted by cleanup.
+    retention-days: ${REFRESH_TOKEN_RETENTION_DAYS:7}
+
+  # ------------------------------------------------------------------
+  # Forgot / reset password flow
+  # ------------------------------------------------------------------
+  password-reset:
+
+    # Public base URL of the reset-password page (frontend). The raw
+    # one-time token is appended as the "token" query parameter.
+    base-url: ${PASSWORD_RESET_BASE_URL:http://localhost:8084/reset-password}
+
+    # How long a reset token stays valid before it expires.
+    expiration-minutes: ${PASSWORD_RESET_EXPIRATION_MINUTES:15}
+
+    mail:
+      # console  -> logs the reset link (development/tests, never production)
+      # smtp     -> sends a real email (default)
+      provider: ${PASSWORD_RESET_MAIL_PROVIDER:smtp}
+      from: ${PASSWORD_RESET_MAIL_FROM:noreply@voltaras.com}
+
+    rate-limit:
+      # Lightweight in-memory guard for the public forgot-password endpoint.
+      enabled: ${PASSWORD_RESET_RATE_LIMIT_ENABLED:true}
+      max-per-window: ${PASSWORD_RESET_RATE_LIMIT_MAX:3}
+      window-seconds: ${PASSWORD_RESET_RATE_LIMIT_WINDOW:900}
 
 eureka:
   client:

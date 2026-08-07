@@ -1,9 +1,11 @@
 package com.voltaras.authservice.controller;
 
 import com.voltaras.authservice.dto.request.ChangePasswordRequest;
+import com.voltaras.authservice.dto.request.ForgotPasswordRequest;
 import com.voltaras.authservice.dto.request.LoginRequest;
 import com.voltaras.authservice.dto.request.RefreshTokenRequest;
 import com.voltaras.authservice.dto.request.RegisterRequest;
+import com.voltaras.authservice.dto.request.ResetPasswordRequest;
 import com.voltaras.authservice.dto.response.AuthResponse;
 import com.voltaras.authservice.dto.response.ErrorResponse;
 import com.voltaras.authservice.dto.response.RefreshTokenResponse;
@@ -241,6 +243,114 @@ public class AuthController {
     }
 
     @Operation(
+            summary = "Request password reset",
+            description = """
+                    Sends a password reset link to the given email when an
+                    active account exists.
+
+                    The response is deliberately identical for existing and
+                    unknown emails, so account existence is never revealed.
+
+                    This endpoint does not require authentication.
+                    """,
+            security = {}
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Generic confirmation - password reset instructions sent if an account exists",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    example = "{\"message\":\"If an account exists for that email, password reset instructions have been sent.\"}"
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid email address",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many password reset requests",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+
+        authService.forgotPassword(request);
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "If an account exists for that email, password reset instructions have been sent."
+                )
+        );
+    }
+
+    @Operation(
+            summary = "Reset password with token",
+            description = """
+                    Sets a new password using the one-time token received
+                    by email.
+
+                    No access token or current password is required. The
+                    token can only be used once and expires after 15 minutes.
+                    """,
+            security = {}
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Password reset successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    example = "{\"message\":\"Password has been reset successfully. Please log in with your new password.\"}"
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid, expired or already used token, password mismatch, or weak password",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+
+        authService.resetPassword(request);
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Password has been reset successfully. Please log in with your new password."
+                )
+        );
+    }
+
+    @Operation(
             summary = "Get current user profile",
             description = "Returns information about the currently authenticated user."
     )
@@ -282,16 +392,27 @@ public class AuthController {
     @Operation(
             summary = "Logout user",
             description = """
-                    Completes logout on the client side.
+                    Revokes the server-side refresh session belonging to
+                    the authenticated access token.
 
-                    The client must remove the stored access token
-                    and refresh token.
+                    After logout, every refresh token of that login
+                    session returns 401 Unauthorized. The client must
+                    also remove its stored tokens.
+
+                    Logout is idempotent: calling it again with the
+                    same session returns the same success response.
                     """
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Logout successful"
+                    description = "Logout successful - refresh session revoked",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    example = "{\"message\":\"Logged out successfully\"}"
+                            )
+                    )
             ),
             @ApiResponse(
                     responseCode = "401",
@@ -305,7 +426,14 @@ public class AuthController {
             )
     })
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout() {
+    public ResponseEntity<Map<String, String>> logout(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+
+        authService.logout(
+                userDetails.getUser().getId(),
+                userDetails.getSessionId()
+        );
 
         return ResponseEntity.ok(
                 Map.of(
