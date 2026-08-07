@@ -1,0 +1,59 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    # LOCK_TIMEOUT keeps the pessimistic-lock concurrency test
+    # deterministic: the second transaction waits for the first commit
+    # instead of failing with a lock timeout.
+    url: jdbc:h2:mem:authdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+  main:
+    allow-bean-definition-overriding: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:2A4B6D8F0C1E3G5H7I9K2M4N6P8Q0R2T4V6W8X0Y2Z4A6B8C0D2E4F6G8H0J}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+  refresh-token:
+    cleanup-interval-ms: 3600000
+    retention-days: 7
+
+  password-reset:
+    base-url: http://localhost:8084/reset-password
+    expiration-minutes: 15
+    mail:
+      provider: console
+      from: noreply@voltaras.com
+    rate-limit:
+      # Disabled so tests can issue repeated forgot-password requests.
+      enabled: false
+      max-per-window: 3
+      window-seconds: 900
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+logging:
+  level:
+    com.voltaras.authservice: DEBUG

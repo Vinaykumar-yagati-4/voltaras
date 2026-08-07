@@ -42,14 +42,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Step 1: Extract the JWT from the Authorization header
             String token = extractTokenFromRequest(request);
 
-            // Step 2: If token exists and is valid, authenticate the user
-            if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
+            // Step 2: If token exists, is valid AND is an ACCESS token,
+            // authenticate the user. Refresh tokens are never accepted
+            // as Bearer credentials, so a stolen refresh token cannot be
+            // used against protected endpoints after logout.
+            if (StringUtils.hasText(token)
+                    && jwtTokenProvider.validateAccessToken(token)) {
 
                 // Step 3: Get the email from the token
                 String email = jwtTokenProvider.getEmailFromToken(token);
 
                 // Step 4: Load user details from the database
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
+
+                /*
+                 * Step 4b: Attach the verified access token's secure
+                 * session identifier to the principal so protected
+                 * endpoints (e.g. logout) can revoke the matching
+                 * refresh session from the security context.
+                 */
+                if (userDetails instanceof CustomUserDetails customUserDetails) {
+                    customUserDetails.setSessionId(
+                            jwtTokenProvider.getSessionIdFromToken(token)
+                    );
+                }
 
                 // Step 5: Create an Authentication token
                 UsernamePasswordAuthenticationToken authToken =

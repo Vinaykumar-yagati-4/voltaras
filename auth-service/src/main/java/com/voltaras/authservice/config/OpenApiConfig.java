@@ -44,6 +44,7 @@ public class OpenApiConfig {
                         • JWT token generation
                         • Refresh tokens
                         • Password management
+                        • Forgot / reset password flow
                         • Current user details
                         """)
                 .contact(contact);

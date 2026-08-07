@@ -1,0 +1,11 @@
+# ------------------------------------------------------------------
+# Development profile (spring.profiles.active=dev)
+#
+# No SMTP server is required locally: the password-reset email is
+# printed to the application log with the reset link (including the
+# one-time token) so the full flow can be exercised by hand.
+# ------------------------------------------------------------------
+app:
+  password-reset:
+    mail:
+      provider: console
