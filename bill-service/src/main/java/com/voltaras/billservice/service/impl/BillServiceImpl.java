@@ -39,7 +39,7 @@ import java.util.List;
  *     <li>current reading &gt;= previous reading</li>
  *     <li>billing month between 1 and 12, billing year valid</li>
  *     <li>due date after generated date</li>
- *     <li>no duplicate bill per user / meter / month / year</li>
+ *     <li>no duplicate bill per consumer / meter / month / year</li>
  *     <li>consumers only access their own bills</li>
  *     <li>admin operations require X-User-Role = ADMIN</li>
  *     <li>PAID bills cannot be cancelled</li>
@@ -151,10 +151,12 @@ public class BillServiceImpl implements BillService {
     @Override
     @Transactional
     public BillResponse generateBill(
-            Long authUserId, String systemRole, GenerateBillRequest request) {
+            Long adminUserId, String systemRole, GenerateBillRequest request) {
 
-        accessHelper.requireAuthenticatedUser(authUserId);
+        accessHelper.requireAuthenticatedUser(adminUserId);
         accessHelper.requireSystemAdmin(systemRole);
+
+        Long consumerUserId = request.getAuthUserId();
 
         BigDecimal previousReading = request.getPreviousReading();
         BigDecimal currentReading = request.getCurrentReading();
@@ -170,7 +172,7 @@ public class BillServiceImpl implements BillService {
         validateDueDate(request.getDueDate(), generatedDate);
 
         checkDuplicateBill(
-                authUserId,
+                consumerUserId,
                 request.getMeterNumber(),
                 request.getBillingMonth(),
                 request.getBillingYear()
@@ -189,13 +191,12 @@ public class BillServiceImpl implements BillService {
                 BillCalculator.calculateTaxAmount(energyCharge, fixedCharge);
 
         BigDecimal lateFee = BillCalculator.ZERO;
-        BigDecimal discountAmount = BillCalculator.ZERO;
 
         BigDecimal totalAmount = BillCalculator.calculateTotalAmount(
-                energyCharge, fixedCharge, taxAmount, lateFee, discountAmount);
+                energyCharge, fixedCharge, taxAmount, lateFee);
 
         Bill bill = Bill.builder()
-                .authUserId(authUserId)
+                .authUserId(consumerUserId)
                 .meterReadingId(request.getMeterReadingId())
                 .meterNumber(request.getMeterNumber())
                 .billingMonth(request.getBillingMonth())
@@ -207,7 +208,6 @@ public class BillServiceImpl implements BillService {
                 .fixedCharge(fixedCharge)
                 .taxAmount(taxAmount)
                 .lateFee(lateFee)
-                .discountAmount(discountAmount)
                 .totalAmount(totalAmount)
                 .amountPaid(BillCalculator.ZERO)
                 .outstandingAmount(totalAmount)
@@ -216,13 +216,13 @@ public class BillServiceImpl implements BillService {
                 .generatedDate(generatedDate)
                 .dueDate(request.getDueDate())
                 .remarks(request.getRemarks())
-                .generatedBy(authUserId)
+                .generatedBy(adminUserId)
                 .build();
 
         Bill saved = billRepository.save(bill);
 
-        log.info("Admin {} generated bill {} for user {} (month {}-{}, total {})",
-                authUserId, saved.getId(), saved.getAuthUserId(),
+        log.info("Admin {} generated bill {} for consumer {} (month {}-{}, total {})",
+                adminUserId, saved.getId(), saved.getAuthUserId(),
                 saved.getBillingMonth(), saved.getBillingYear(), saved.getTotalAmount());
 
         return billMapper.toResponse(saved);
@@ -283,7 +283,7 @@ public class BillServiceImpl implements BillService {
         // Null-safe: fields omitted from the request stay unchanged.
         billMapper.updateBill(request, bill);
 
-        // Late fee / discount may have changed - recalculate money fields.
+        // Late fee may have changed, so recalculate money fields.
         recalculateTotals(bill);
 
         Bill saved = billRepository.save(bill);
@@ -408,7 +408,7 @@ public class BillServiceImpl implements BillService {
 
     /**
      * Recalculates total and outstanding amounts from the current entity
-     * values after a late fee / discount change.
+     * values after a late-fee change.
      */
     private void recalculateTotals(Bill bill) {
 
@@ -416,8 +416,7 @@ public class BillServiceImpl implements BillService {
                 bill.getEnergyCharge(),
                 bill.getFixedCharge(),
                 bill.getTaxAmount(),
-                bill.getLateFee(),
-                bill.getDiscountAmount()
+                bill.getLateFee()
         );
 
         bill.setTotalAmount(totalAmount);

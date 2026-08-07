@@ -68,6 +68,7 @@ class BillServiceImplTest {
     void generateBill_success_calculatesAmounts() {
 
         GenerateBillRequest request = GenerateBillRequest.builder()
+                .authUserId(USER_ID)
                 .meterReadingId(42L)
                 .meterNumber("MTR-2024-00123")
                 .previousReading(new BigDecimal("1250.50"))
@@ -461,6 +462,7 @@ class BillServiceImplTest {
 
     private GenerateBillRequest validRequest() {
         return GenerateBillRequest.builder()
+                .authUserId(USER_ID)
                 .meterReadingId(42L)
                 .meterNumber("MTR-2024-00123")
                 .previousReading(new BigDecimal("1250.50"))

@@ -74,7 +74,7 @@ public class BillController {
             )
     })
     public ResponseEntity<List<BillSummaryResponse>> getMyBills(
-            @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "100")
+            @Parameter(description = "Authenticated consumer ID injected by the API Gateway", example = "13")
             @RequestHeader("X-User-Id") Long authUserId) {
 
         List<BillSummaryResponse> response =
@@ -101,7 +101,7 @@ public class BillController {
             )
     })
     public ResponseEntity<BillResponse> getMyBillById(
-            @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "100")
+            @Parameter(description = "Authenticated consumer ID injected by the API Gateway", example = "13")
             @RequestHeader("X-User-Id") Long authUserId,
             @Parameter(description = "Bill ID", example = "1")
             @PathVariable Long billId) {
@@ -134,9 +134,9 @@ public class BillController {
             )
     })
     public ResponseEntity<List<BillSummaryResponse>> getMyBillsByPeriod(
-            @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "100")
+            @Parameter(description = "Authenticated consumer ID injected by the API Gateway", example = "13")
             @RequestHeader("X-User-Id") Long authUserId,
-            @Parameter(description = "Billing month (1-12)", example = "6")
+            @Parameter(description = "Billing month (1-12)", example = "8")
             @RequestParam Integer month,
             @Parameter(description = "Billing year", example = "2026")
             @RequestParam Integer year) {
@@ -164,7 +164,7 @@ public class BillController {
             )
     })
     public ResponseEntity<List<BillSummaryResponse>> getMyOutstandingBills(
-            @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "100")
+            @Parameter(description = "Authenticated consumer ID injected by the API Gateway", example = "13")
             @RequestHeader("X-User-Id") Long authUserId) {
 
         List<BillSummaryResponse> response =
@@ -176,7 +176,8 @@ public class BillController {
     @PostMapping("/admin")
     @Operation(
             summary = "Generate a bill",
-            description = "Creates a new bill for the authenticated user with tariff calculation. "
+            description = "Creates a new bill for the consumer identified by authUserId in the request body. "
+                    + "The authenticated Admin is recorded separately as generatedBy. "
                     + "Requires X-User-Role = ADMIN."
     )
     @ApiResponses({
@@ -187,7 +188,7 @@ public class BillController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid readings, billing period, due date, or missing headers",
+                    description = "Invalid consumer ID, readings, billing period, due date, or missing headers",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             ),
             @ApiResponse(
@@ -197,19 +198,19 @@ public class BillController {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Duplicate bill for the same user, meter, month and year",
+                    description = "Duplicate bill for the same consumer, meter, month and year",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
     public ResponseEntity<BillResponse> generateBill(
-            @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "100")
-            @RequestHeader("X-User-Id") Long authUserId,
+            @Parameter(description = "Authenticated Admin ID injected by the API Gateway", example = "4")
+            @RequestHeader("X-User-Id") Long adminUserId,
             @Parameter(description = "Role injected by the API Gateway (ADMIN or ROLE_ADMIN)", example = "ADMIN")
             @RequestHeader("X-User-Role") String systemRole,
             @Valid @RequestBody GenerateBillRequest request) {
 
         BillResponse response =
-                billService.generateBill(authUserId, systemRole, request);
+                billService.generateBill(adminUserId, systemRole, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -246,7 +247,7 @@ public class BillController {
             @RequestHeader("X-User-Role") String systemRole,
             @Parameter(description = "Optional bill status filter", example = "GENERATED")
             @RequestParam(required = false) BillStatus status,
-            @Parameter(description = "Optional billing month filter (1-12)", example = "6")
+            @Parameter(description = "Optional billing month filter (1-12)", example = "8")
             @RequestParam(required = false) Integer month,
             @Parameter(description = "Optional billing year filter", example = "2026")
             @RequestParam(required = false) Integer year) {
@@ -259,7 +260,7 @@ public class BillController {
 
     @GetMapping("/admin/{billId}")
     @Operation(
-            summary = "Get bill by ID (admin)",
+            summary = "Get bill by ID (Admin)",
             description = "Returns full details of any bill. Requires X-User-Role = ADMIN."
     )
     @ApiResponses({
@@ -294,9 +295,8 @@ public class BillController {
     @PutMapping("/admin/{billId}")
     @Operation(
             summary = "Update a bill",
-            description = "Updates due date, late fee, discount and remarks, then recalculates the "
-                    + "total amount. PAID and CANCELLED bills cannot be modified. "
-                    + "Requires X-User-Role = ADMIN."
+            description = "Updates the due date, late fee and remarks, then recalculates the total amount. "
+                    + "PAID and CANCELLED bills cannot be modified. Requires X-User-Role = ADMIN."
     )
     @ApiResponses({
             @ApiResponse(

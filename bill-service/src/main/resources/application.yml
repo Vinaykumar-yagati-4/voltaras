@@ -5,21 +5,11 @@ spring:
   application:
     name: bill-service
 
-  # ==============================================================
-  # Datasource Configuration
-  # ==============================================================
-
-  # Credentials are read from environment variables.
-  # No database password is hardcoded in this file.
   datasource:
     url: jdbc:mysql://localhost:3306/bill_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${BILL_DB_USERNAME:root}
     password: ${BILL_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
-  # ==============================================================
-  # JPA / Hibernate Configuration
-  # ==============================================================
 
   jpa:
     hibernate:
@@ -33,10 +23,6 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
 
-# ==============================================================
-# Eureka Client Configuration
-# ==============================================================
-
 eureka:
   client:
     register-with-eureka: true
@@ -49,10 +35,6 @@ eureka:
     hostname: localhost
     prefer-ip-address: true
 
-# ==============================================================
-# Actuator Configuration
-# ==============================================================
-
 management:
   endpoints:
     web:
@@ -63,12 +45,7 @@ management:
     health:
       show-details: always
 
-# ==============================================================
-# Swagger / OpenAPI Configuration
-# ==============================================================
-
 springdoc:
-
   # Generates the OpenAPI JSON description.
   api-docs:
     enabled: true
@@ -93,10 +70,6 @@ springdoc:
 
   # Do not include Actuator endpoints in the application API documentation.
   show-actuator: false
-
-# ==============================================================
-# Logging Configuration
-# ==============================================================
 
 logging:
   level:

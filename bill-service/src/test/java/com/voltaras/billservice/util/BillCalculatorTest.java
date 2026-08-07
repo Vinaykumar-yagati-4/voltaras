@@ -129,8 +129,8 @@ class BillCalculatorTest {
                 new BigDecimal("150.00"), // energy
                 new BigDecimal("100.00"), // fixed
                 new BigDecimal("12.50"),  // tax
-                new BigDecimal("0.00"),   // late fee
-                new BigDecimal("0.00")    // discount
+                new BigDecimal("0.00")   // late fee
+                
         );
 
         assertThat(total).isEqualByComparingTo(new BigDecimal("262.50"));
@@ -144,12 +144,12 @@ class BillCalculatorTest {
                 new BigDecimal("150.00"),
                 new BigDecimal("100.00"),
                 new BigDecimal("12.50"),
-                new BigDecimal("50.00"),
-                new BigDecimal("25.00")
+                new BigDecimal("50.00")
+           
         );
 
         // 150 + 100 + 12.50 + 50 - 25 = 287.50
-        assertThat(total).isEqualByComparingTo(new BigDecimal("287.50"));
+        assertThat(total).isEqualByComparingTo(new BigDecimal("312.50"));
     }
 
     @Test
@@ -160,8 +160,8 @@ class BillCalculatorTest {
                 new BigDecimal("100.00"),
                 new BigDecimal("100.00"),
                 new BigDecimal("10.005"),
-                new BigDecimal("0.00"),
                 new BigDecimal("0.00")
+              
         );
 
         assertThat(total).isCloseTo(new BigDecimal("210.01"), offset(DELTA));

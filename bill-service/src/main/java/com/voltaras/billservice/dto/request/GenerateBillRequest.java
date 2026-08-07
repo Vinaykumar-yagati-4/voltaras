@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,12 +16,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Request payload for generating a new electricity bill (admin only).
+ * Request payload for generating a new electricity bill (Admin only).
  *
- * <p>
- * The bill owner is never read from the request body: it always comes
- * from the X-User-Id header injected by the API Gateway.
- * </p>
+ * The consumer ID is supplied through authUserId in the request body.
+ * The authenticated Admin ID comes from the X-User-Id header injected
+ * by the API Gateway and is stored separately as generatedBy.
  */
 @Data
 @Builder
@@ -28,54 +28,81 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Schema(
         name = "GenerateBillRequest",
-        description = "Payload used by administrators to generate a bill"
+        description = "Payload used by administrators to generate a consumer bill"
 )
 public class GenerateBillRequest {
 
     @NotNull
+    @Positive
     @Schema(
-            description = "ID of the verified meter reading this bill is generated from",
-            example = "42"
+            description = "Auth user ID of the consumer who owns the bill",
+            example = "13"
+    )
+    private Long authUserId;
+
+    @NotNull
+    @Positive
+    @Schema(
+            description = "ID of the verified meter reading used to generate the bill",
+            example = "6"
     )
     private Long meterReadingId;
 
     @NotBlank
-    @Schema(description = "Meter number of the consumer", example = "MTR-2024-00123")
+    @Schema(
+            description = "Meter number belonging to the consumer",
+            example = "GVR-0001"
+    )
     private String meterNumber;
 
     @NotNull
     @PositiveOrZero
-    @Schema(description = "Previous meter reading", example = "1250.50")
+    @Schema(
+            description = "Previous meter reading",
+            example = "1250.00"
+    )
     private BigDecimal previousReading;
 
     @NotNull
     @PositiveOrZero
-    @Schema(description = "Current meter reading, must be >= previousReading", example = "1385.75")
+    @Schema(
+            description = "Current meter reading; must be greater than or equal to the previous reading",
+            example = "1325.00"
+    )
     private BigDecimal currentReading;
 
     @NotNull
     @Min(1)
     @Max(12)
-    @Schema(description = "Billing month (1-12)", example = "6")
+    @Schema(
+            description = "Billing month from 1 to 12",
+            example = "8"
+    )
     private Integer billingMonth;
 
     @NotNull
-    @Schema(description = "Billing year", example = "2026")
+    @Schema(
+            description = "Billing year",
+            example = "2026"
+    )
     private Integer billingYear;
 
     @Schema(
-            description = "Date the bill was generated. Defaults to today when omitted",
-            example = "2026-06-01"
+            description = "Date the bill was generated; defaults to the current date when omitted",
+            example = "2026-08-07"
     )
     private LocalDate generatedDate;
 
     @NotNull
     @Schema(
-            description = "Due date, must be after the generated date",
-            example = "2026-06-16"
+            description = "Payment due date; must be after the generated date",
+            example = "2026-08-25"
     )
     private LocalDate dueDate;
 
-    @Schema(description = "Optional remarks attached to the bill", example = "Generated from verified reading")
+    @Schema(
+            description = "Optional remarks attached to the bill",
+            example = "Generated from verified meter reading 6"
+    )
     private String remarks;
 }
