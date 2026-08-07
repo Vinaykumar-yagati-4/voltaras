@@ -72,8 +72,7 @@ class MembershipServiceImplTest {
 
         Page<MembershipResponse> response =
                 membershipService.getOrganizationMembers(
-                        ORG_ID, MEMBER_ID, PageRequest.of(0, 10));
-
+                       MEMBER_ID, ORG_ID, PageRequest.of(0, 10));
         assertThat(response.getContent()).hasSize(1);
     }
 
@@ -88,9 +87,12 @@ class MembershipServiceImplTest {
         OrganizationMembership target = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
+         when(accessHelper.requireOrganizationRole(
+        ORG_ID, OWNER_ID,
+        MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
+        .thenReturn(buildMembership(OWNER_ID, MembershipRole.OWNER));
+
+
         when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(target));
         when(membershipRepository.save(target)).thenReturn(target);
@@ -111,11 +113,13 @@ class MembershipServiceImplTest {
         OrganizationMembership target = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, ORG_ADMIN_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(2L, MembershipRole.ORGANIZATION_ADMIN));
-        when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
+               when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(target));
+
+                 when(accessHelper.requireOrganizationRole(
+        ORG_ID, ORG_ADMIN_ID,
+        MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
+        .thenReturn(buildMembership(ORG_ADMIN_ID, MembershipRole.ORGANIZATION_ADMIN));
 
         assertThatThrownBy(() -> membershipService.updateMembershipRole(
                 ORG_ADMIN_ID, ORG_ID, TARGET_MEMBERSHIP_ID,
@@ -134,10 +138,7 @@ class MembershipServiceImplTest {
         OrganizationMembership target = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
-        when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
+when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(target));
 
         assertThatThrownBy(() -> membershipService.updateMembershipRole(
@@ -156,9 +157,7 @@ class MembershipServiceImplTest {
         OrganizationMembership ownerMembership = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.OWNER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
+
         when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(ownerMembership));
 
@@ -180,9 +179,7 @@ class MembershipServiceImplTest {
         OrganizationMembership target = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
+
         when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(target));
         when(membershipRepository.save(target)).thenReturn(target);
@@ -202,10 +199,7 @@ class MembershipServiceImplTest {
         OrganizationMembership ownerMembership = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.OWNER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
-        when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
+               when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(ownerMembership));
 
         assertThatThrownBy(() ->
@@ -227,9 +221,7 @@ class MembershipServiceImplTest {
         OrganizationMembership target = buildMembership(
                 TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
+
         when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(target));
         when(membershipRepository.save(target)).thenReturn(target);
@@ -249,10 +241,7 @@ class MembershipServiceImplTest {
                 TARGET_MEMBERSHIP_ID, MembershipRole.OWNER);
         ownerMembership.setAuthUserId(OWNER_ID);
 
-        when(accessHelper.requireOrganizationRole(
-                ORG_ID, OWNER_ID, MembershipRole.OWNER, MembershipRole.ORGANIZATION_ADMIN))
-                .thenReturn(buildMembership(1L, MembershipRole.OWNER));
-        when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
+               when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID))
                 .thenReturn(Optional.of(ownerMembership));
 
         assertThatThrownBy(() ->

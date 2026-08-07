@@ -6,7 +6,6 @@ import com.voltaras.organizationservice.dto.response.MessageResponse;
 import com.voltaras.organizationservice.dto.response.UnitResponse;
 import com.voltaras.organizationservice.enums.StructureStatus;
 import com.voltaras.organizationservice.enums.UnitStatus;
-import com.voltaras.organizationservice.enums.UnitType;
 import com.voltaras.organizationservice.service.StructureService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,10 +24,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Web-layer tests for {@link StructureController}: buildings, blocks,
- * floors, units and status changes.
- */
 @WebMvcTest(StructureController.class)
 @Import(SecurityConfig.class)
 class StructureControllerTest {
@@ -42,7 +37,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("POST building: 201 Created")
     void createBuilding_returns201Created() throws Exception {
-
         BuildingResponse response = BuildingResponse.builder()
                 .id(10L)
                 .organizationId(1L)
@@ -51,7 +45,8 @@ class StructureControllerTest {
                 .status(StructureStatus.ACTIVE)
                 .build();
 
-        when(structureService.createBuilding(eq(100L), eq(1L), any())).thenReturn(response);
+        when(structureService.createBuilding(eq(100L), eq(1L), any()))
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/organizations/1/buildings")
                         .header("X-User-Id", "100")
@@ -72,7 +67,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("POST building: blank name fails validation with 400")
     void createBuilding_validationFailure_returns400() throws Exception {
-
         mockMvc.perform(post("/api/organizations/1/buildings")
                         .header("X-User-Id", "100")
                         .header("X-User-Role", "CONSUMER")
@@ -90,7 +84,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("GET buildings: 200 OK")
     void getOrganizationBuildings_returns200Ok() throws Exception {
-
         BuildingResponse response = BuildingResponse.builder()
                 .id(10L)
                 .name("Main Building")
@@ -109,7 +102,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("POST unit: negative capacity fails validation with 400")
     void createUnit_negativeCapacity_returns400() throws Exception {
-
         mockMvc.perform(post("/api/floors/30/units")
                         .header("X-User-Id", "100")
                         .header("X-User-Role", "CONSUMER")
@@ -128,7 +120,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("PATCH unit status: unknown status fails validation with 400")
     void updateUnitStatus_invalidStatus_returns400() throws Exception {
-
         mockMvc.perform(patch("/api/units/40/status")
                         .header("X-User-Id", "100")
                         .header("X-User-Role", "CONSUMER")
@@ -139,13 +130,12 @@ class StructureControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error.code").value("MALFORMED_REQUEST"));
     }
 
     @Test
     @DisplayName("PATCH unit status: 200 OK")
     void updateUnitStatus_returns200Ok() throws Exception {
-
         UnitResponse response = UnitResponse.builder()
                 .id(40L)
                 .status(UnitStatus.OCCUPIED)
@@ -170,7 +160,6 @@ class StructureControllerTest {
     @Test
     @DisplayName("DELETE unit: 200 OK with message")
     void deleteUnit_returns200WithMessage() throws Exception {
-
         when(structureService.deleteUnit(100L, 40L))
                 .thenReturn(MessageResponse.builder()
                         .message("Resource deleted successfully")
@@ -180,6 +169,7 @@ class StructureControllerTest {
                         .header("X-User-Id", "100")
                         .header("X-User-Role", "CONSUMER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Resource deleted successfully"));
+                .andExpect(jsonPath("$.message")
+                        .value("Resource deleted successfully"));
     }
 }

@@ -36,10 +36,10 @@
                   "const jsonData = pm.response.json();",
                   "",
                   "pm.test('JWT token is present', function () {",
-                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.accessToken).to.not.be.undefined;",
                   "});",
                   "",
-                  "pm.collectionVariables.set('accessToken', jsonData.token);"
+                  "pm.collectionVariables.set('accessToken', jsonData.accessToken);"
                 ]
               }
             }
@@ -72,11 +72,11 @@
                   "const jsonData = pm.response.json();",
                   "",
                   "pm.test('JWT token with ADMIN role is present', function () {",
-                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.accessToken).to.not.be.undefined;",
                   "    pm.expect(jsonData.role).to.eql('ADMIN');",
                   "});",
                   "",
-                  "pm.collectionVariables.set('adminAccessToken', jsonData.token);"
+                  "pm.collectionVariables.set('adminAccessToken', jsonData.accessToken);"
                 ]
               }
             }
@@ -275,10 +275,10 @@
                   "const jsonData = pm.response.json();",
                   "",
                   "pm.test('JWT token is present', function () {",
-                  "    pm.expect(jsonData.token).to.not.be.undefined;",
+                  "    pm.expect(jsonData.accessToken).to.not.be.undefined;",
                   "});",
                   "",
-                  "pm.collectionVariables.set('consumerBToken', jsonData.token);"
+                  "pm.collectionVariables.set('consumerBToken', jsonData.accessToken);"
                 ]
               }
             }

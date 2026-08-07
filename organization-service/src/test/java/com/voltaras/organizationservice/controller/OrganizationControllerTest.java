@@ -125,7 +125,7 @@ class OrganizationControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error.code").value("MALFORMED_REQUEST"));
     }
 
     @Test

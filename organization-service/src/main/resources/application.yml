@@ -5,21 +5,11 @@ spring:
   application:
     name: organization-service
 
-  # ==============================================================
-  # Datasource Configuration
-  # ==============================================================
-
-  # Credentials are read from environment variables.
-  # No database password is hardcoded in this file.
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:organization_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
-  # ==============================================================
-  # JPA / Hibernate Configuration
-  # ==============================================================
 
   jpa:
     hibernate:
@@ -31,10 +21,26 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
 
-# ==============================================================
-# Eureka Client Configuration
-# ==============================================================
+  data:
+    web:
+      pageable:
+
+        # Used when the client does not provide the size parameter.
+        default-page-size: ${DEFAULT_PAGE_SIZE:10}
+
+        # Prevents clients from requesting excessively large pages.
+        max-page-size: ${MAX_PAGE_SIZE:100}
+
+        # Spring Data pagination starts from page 0.
+        one-indexed-parameters: false
+
+      sort:
+
+        # Enables sorting using query parameters such as:
+        # sort=createdAt,desc
+        sort-parameter: sort
 
 eureka:
   client:
@@ -48,10 +54,6 @@ eureka:
     hostname: localhost
     prefer-ip-address: true
 
-# ==============================================================
-# Actuator Configuration
-# ==============================================================
-
 management:
   endpoints:
     web:
@@ -62,40 +64,24 @@ management:
     health:
       show-details: always
 
-# ==============================================================
-# Swagger / OpenAPI Configuration
-# ==============================================================
-
 springdoc:
-
-  # Generates the OpenAPI JSON description.
   api-docs:
     enabled: true
     path: /v3/api-docs
 
-  # Provides the browser-based Swagger testing interface.
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
 
-    # Display API operations in HTTP-method order.
     operations-sorter: method
-
-    # Display controller groups alphabetically.
     tags-sorter: alpha
-
-    # Keep each controller section closed when Swagger opens.
     doc-expansion: none
-
-    # Do not show Swagger's default example server.
     disable-swagger-default-url: true
 
-  # Do not include Actuator endpoints in the application API documentation.
-  show-actuator: false
+    # Keeps the JWT authorization value during browser refreshes.
+    persist-authorization: true
 
-# ==============================================================
-# Logging Configuration
-# ==============================================================
+  show-actuator: false
 
 logging:
   level:

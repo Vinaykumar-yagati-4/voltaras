@@ -6,6 +6,7 @@ import com.voltaras.organizationservice.dto.response.MessageResponse;
 import com.voltaras.organizationservice.service.MembershipService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -24,12 +25,20 @@ public class MembershipController {
     public ResponseEntity<Page<MembershipResponse>> getOrganizationMembers(
             @RequestHeader("X-User-Id") Long requesterUserId,
             @PathVariable Long organizationId,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable) {
+            @ParameterObject
+            @PageableDefault(
+                    sort = "createdAt",
+                    direction = Sort.Direction.DESC
+            )
+            Pageable pageable
+    ) {
 
         Page<MembershipResponse> response =
                 membershipService.getOrganizationMembers(
-                        requesterUserId, organizationId, pageable);
+                        requesterUserId,
+                        organizationId,
+                        pageable
+                );
 
         return ResponseEntity.ok(response);
     }
@@ -39,11 +48,16 @@ public class MembershipController {
             @RequestHeader("X-User-Id") Long requesterUserId,
             @PathVariable Long organizationId,
             @PathVariable Long membershipId,
-            @Valid @RequestBody UpdateMembershipRoleRequest request) {
+            @Valid @RequestBody UpdateMembershipRoleRequest request
+    ) {
 
         MembershipResponse response =
                 membershipService.updateMembershipRole(
-                        requesterUserId, organizationId, membershipId, request);
+                        requesterUserId,
+                        organizationId,
+                        membershipId,
+                        request
+                );
 
         return ResponseEntity.ok(response);
     }
@@ -52,11 +66,15 @@ public class MembershipController {
     public ResponseEntity<MembershipResponse> suspendMember(
             @RequestHeader("X-User-Id") Long requesterUserId,
             @PathVariable Long organizationId,
-            @PathVariable Long membershipId) {
+            @PathVariable Long membershipId
+    ) {
 
         MembershipResponse response =
                 membershipService.suspendMember(
-                        requesterUserId, organizationId, membershipId);
+                        requesterUserId,
+                        organizationId,
+                        membershipId
+                );
 
         return ResponseEntity.ok(response);
     }
@@ -65,11 +83,15 @@ public class MembershipController {
     public ResponseEntity<MessageResponse> removeMember(
             @RequestHeader("X-User-Id") Long requesterUserId,
             @PathVariable Long organizationId,
-            @PathVariable Long membershipId) {
+            @PathVariable Long membershipId
+    ) {
 
         MessageResponse response =
                 membershipService.removeMember(
-                        requesterUserId, organizationId, membershipId);
+                        requesterUserId,
+                        organizationId,
+                        membershipId
+                );
 
         return ResponseEntity.ok(response);
     }

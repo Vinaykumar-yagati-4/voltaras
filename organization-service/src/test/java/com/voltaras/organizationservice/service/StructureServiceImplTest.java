@@ -122,7 +122,7 @@ class StructureServiceImplTest {
                 .code("MAIN")
                 .build();
 
-        when(accessHelper.requireOrganization(ORG_ID)).thenReturn(buildOrganization());
+
         when(buildingRepository.existsByOrganizationIdAndCodeIgnoreCase(ORG_ID, "MAIN"))
                 .thenReturn(true);
 

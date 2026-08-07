@@ -2,7 +2,7 @@ package com.voltaras.organizationservice.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,37 +18,51 @@ public class SecurityConfig {
     ) throws Exception {
 
         http
-                // Disable CSRF because this service is stateless.
+                // This microservice is stateless.
                 .csrf(csrf -> csrf.disable())
 
-                // Enable CORS with Spring defaults.
-                .cors(Customizer.withDefaults())
+                /*
+                 * Do not configure CORS here.
+                 * CORS is handled centrally by the API Gateway.
+                 */
 
-                // Stateless because authentication is handled by API Gateway.
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // ---------- Swagger/OpenAPI ----------
+                        // Allow browser preflight requests.
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
+
+                        // Swagger and OpenAPI endpoints.
                         .requestMatchers(
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        // ---------- Actuator ----------
+                        // Actuator endpoints.
                         .requestMatchers(
                                 "/actuator/**"
                         ).permitAll()
 
-                        // ---------- Application APIs ----------
+                        /*
+                         * API Gateway validates JWT and forwards
+                         * X-User-Id and X-User-Role headers.
+                         */
                         .anyRequest().permitAll()
                 )
 
-                // Disable default Spring Security login pages.
+                // Disable Spring Security login mechanisms.
                 .httpBasic(basic -> basic.disable())
-                .formLogin(form -> form.disable());
+                .formLogin(form -> form.disable())
+                .logout(logout -> logout.disable());
 
         return http.build();
     }
