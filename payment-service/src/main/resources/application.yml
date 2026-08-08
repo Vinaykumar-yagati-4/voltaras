@@ -1,0 +1,128 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: payment-service
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:payment_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+
+    show-sql: ${JPA_SHOW_SQL:true}
+    open-in-view: false
+
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  data:
+    web:
+      pageable:
+
+        # Used when the client does not provide the size parameter.
+        default-page-size: ${DEFAULT_PAGE_SIZE:10}
+
+        # Prevents clients from requesting excessively large pages.
+        max-page-size: ${MAX_PAGE_SIZE:100}
+
+        # Spring Data pagination starts from page 0.
+        one-indexed-parameters: false
+
+      sort:
+
+        # Enables sorting using query parameters such as:
+        # sort=createdAt,desc
+        sort-parameter: sort
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  # Generates the OpenAPI JSON description.
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+  # Provides the browser-based Swagger testing interface.
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+    # Display API operations in HTTP-method order.
+    operations-sorter: method
+
+    # Display controller groups alphabetically.
+    tags-sorter: alpha
+
+    # Keep each controller section closed when Swagger opens.
+    doc-expansion: none
+
+    # Do not show Swagger's default example server.
+    disable-swagger-default-url: true
+
+    # Keeps the JWT authorization value during browser refreshes.
+    persist-authorization: true
+
+  # Do not include Actuator endpoints in the application API documentation.
+  show-actuator: false
+
+app:
+  # The Auth Service is called through the AuthServiceClient Feign
+  # client (GET /api/auth/internal/users/{userId}), resolved via Eureka
+  # using the service name "auth-service". The Bearer token of the
+  # incoming request is forwarded automatically by FeignConfig.
+
+  # Base URL of the Bill Service used for inter-service communication.
+  # The gateway routes /api/bills/** to bill-service on port 8084.
+  bill-service:
+    base-url: ${BILL_SERVICE_URL:http://localhost:8084}
+
+  # Base URL of the Organization Service used to authorize organization
+  # access. The gateway routes /api/organizations/** to organization-service.
+  organization-service:
+    base-url: ${ORGANIZATION_SERVICE_URL:http://localhost:8085}
+
+  razorpay:
+    # Razorpay payment gateway (sandbox/test mode).
+    #
+    # RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET authenticate server-side
+    # calls to the Razorpay API; RAZORPAY_WEBHOOK_SECRET verifies the
+    # HMAC-SHA256 signature of webhook callbacks. These values are never
+    # hardcoded: they MUST be provided through environment variables when
+    # running the service (the service fails fast at startup if missing).
+    base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com}
+    key-id: ${RAZORPAY_KEY_ID}
+    key-secret: ${RAZORPAY_KEY_SECRET}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
+
+logging:
+  level:
+    org.hibernate.SQL: ${LOG_HIBERNATE_SQL:WARN}
+    com.voltaras.paymentservice: ${LOG_APP_LEVEL:INFO}
