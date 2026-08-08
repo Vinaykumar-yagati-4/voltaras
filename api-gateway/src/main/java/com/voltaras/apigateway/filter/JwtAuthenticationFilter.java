@@ -131,6 +131,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return path.equals("/api/auth/register")
                 || path.equals("/api/auth/login")
                 || path.equals("/api/auth/refresh-token")
+                // Payment Service webhook: protected by its own shared
+                // secret (X-Razorpay-Signature), no JWT is required.
+                || path.startsWith("/api/payments/webhooks/")
                 || path.equals("/actuator")
                 || path.startsWith("/actuator/");
     }

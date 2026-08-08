@@ -72,6 +72,14 @@ spring:
               predicates:
                 - Path=/api/organizations/**,/api/buildings/**,/api/blocks/**,/api/floors/**,/api/units/**,/api/admin/organizations/**
 
+            # Payment Service
+            # Keep this before bill-service because /api/bills/{billId}/payments
+            # belongs to Payment Service, not Bill Service.
+            - id: payment-service
+              uri: lb://PAYMENT-SERVICE
+              predicates:
+                - Path=/api/payments/**,/api/recharges/**,/api/wallet/**,/api/wallets/**,/api/bills/*/payments/**
+
             # Bill Service
             - id: bill-service
               uri: lb://BILL-SERVICE
