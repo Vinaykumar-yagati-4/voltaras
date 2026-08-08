@@ -1,0 +1,776 @@
+{
+  "info": {
+    "_postman_id": "voltaras-payment-service-2026-0002",
+    "name": "VOLTARAS Payment Service",
+    "description": "API tests for the VOLTARAS Payment Service (prepaid wallet + Razorpay sandbox).\n\nSETUP\n1. Start Eureka, Auth, Bill, Organization, Payment Service and the API Gateway (http://localhost:8080).\n2. Register accounts via POST /api/auth/register (public route): a consumer (CONSUMER) and system-admin (ADMIN).\n3. Register an organization and join the consumer as an ACTIVE member; generate an unpaid bill for the consumer via the Bill Service (POST /api/bills/admin requires an ADMIN JWT).\n4. Export Razorpay sandbox credentials on the Payment Service: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET (rzp_test_... only).\n5. Open the Setup folder and run 'Login (Consumer)' and 'Login (System Admin)' first - the JWTs are stored automatically in accessToken / adminAccessToken.\n6. Run 'Get My Bills (Consumer)' to capture billId, then 'Get My Organizations' to capture organizationId.\n\nDo NOT add X-User-Id / X-User-Email / X-User-Role headers manually - the API Gateway validates the JWT and injects them automatically.\n\nFLOW\nRecharge (UPI/CARD) -> Razorpay sandbox checkout -> payment.captured webhook credits the wallet -> pay the bill from the wallet.\n\nFolders: Setup · Recharge & Wallet · Bill Payment & Idempotency · Inspect · Negative Tests\n\nThe Idempotency-Key header uses dynamic values ({{$guid}}) so the collection can be re-run safely. The Razorpay webhook requests need a valid HMAC-SHA256 signature over the raw body computed with RAZORPAY_WEBHOOK_SECRET (generate it in the Razorpay dashboard or with a small script); no real card or financial data is used.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" },
+    { "key": "organizationId", "value": "" },
+    { "key": "billId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "paymentReference", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "rechargeReference", "value": "" },
+    { "key": "idempotencyKey", "value": "" },
+    { "key": "webhookSignature", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Login (Consumer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('JWT token is present', function () {",
+                  "    pm.expect(jsonData.accessToken).to.not.be.undefined;",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', jsonData.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"consumer-a@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Login (System Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('JWT with ADMIN role is present', function () {",
+                  "    pm.expect(jsonData.accessToken).to.not.be.undefined;",
+                  "    pm.expect(jsonData.role).to.eql('ADMIN');",
+                  "});",
+                  "pm.collectionVariables.set('adminAccessToken', jsonData.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"system-admin@voltaras.com\",\n  \"password\": \"ReplaceWithYourPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login"
+            }
+          }
+        },
+        {
+          "name": "Get My Bills (Consumer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Captures an unpaid billId', function () {",
+                  "    const unpaid = jsonData.find(function (b) { return b.paymentStatus === 'UNPAID' || b.paymentStatus === 'PARTIALLY_PAID'; });",
+                  "    pm.expect(unpaid).to.not.be.undefined;",
+                  "    pm.collectionVariables.set('billId', String(unpaid.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/me"
+            }
+          }
+        },
+        {
+          "name": "Get My Organizations (Consumer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Captures an organizationId with ACTIVE membership', function () {",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
+                  "    pm.collectionVariables.set('organizationId', String(jsonData[0].organization.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/me"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recharge & Wallet",
+      "item": [
+        {
+          "name": "Create Recharge Order - UPI (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Razorpay order created and references captured', function () {",
+                  "    pm.expect(jsonData.orderId).to.not.be.undefined;",
+                  "    pm.expect(jsonData.status).to.eql('CREATED');",
+                  "    pm.expect(jsonData.razorpayKeyId).to.not.be.undefined;",
+                  "    pm.collectionVariables.set('orderId', jsonData.orderId);",
+                  "    pm.collectionVariables.set('rechargeReference', jsonData.rechargeReference);",
+                  "    pm.collectionVariables.set('idempotencyKey', pm.request.headers.get('Idempotency-Key'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "recharge-upi-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 500.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"UPI\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recharges/orders"
+            }
+          }
+        },
+        {
+          "name": "Create Recharge Order - CARD (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('CARD order created', function () {",
+                  "    pm.expect(jsonData.orderId).to.not.be.undefined;",
+                  "    pm.expect(jsonData.status).to.eql('CREATED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "recharge-card-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 250.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"CARD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recharges/orders"
+            }
+          }
+        },
+        {
+          "name": "Razorpay Webhook - payment.captured (200)",
+          "description": "Simulates the Razorpay callback for the captured order ({{orderId}}). Public route (no JWT). The X-Razorpay-Signature header must be the HMAC-SHA256 (hex) of the exact raw body using RAZORPAY_WEBHOOK_SECRET. Fill the webhookSignature collection variable with a correctly computed value, or trigger the webhook from the Razorpay test dashboard.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Razorpay-Signature", "value": "{{webhookSignature}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entity\": \"event\",\n  \"event\": \"payment.captured\",\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_test_captured_1\",\n        \"order_id\": \"{{orderId}}\",\n        \"amount\": 50000,\n        \"currency\": \"INR\",\n        \"status\": \"captured\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhooks/razorpay"
+            }
+          }
+        },
+        {
+          "name": "Repeat Same Webhook - Idempotent (200)",
+          "description": "The identical callback is a no-op: still 200 and the wallet is NOT credited twice.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Razorpay-Signature", "value": "{{webhookSignature}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entity\": \"event\",\n  \"event\": \"payment.captured\",\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_test_captured_1\",\n        \"order_id\": \"{{orderId}}\",\n        \"amount\": 50000,\n        \"currency\": \"INR\",\n        \"status\": \"captured\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhooks/razorpay"
+            }
+          }
+        },
+        {
+          "name": "Get My Wallet Balance (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Wallet balance is present', function () {",
+                  "    pm.expect(jsonData.balance).to.not.be.undefined;",
+                  "    pm.expect(jsonData.currency).to.eql('INR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/me"
+            }
+          }
+        },
+        {
+          "name": "Get My Recharges (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Recharge history returned', function () {",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recharges/me"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bill Payment & Idempotency",
+      "item": [
+        {
+          "name": "Pay Bill From Wallet (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Payment is SUCCESS and references captured', function () {",
+                  "    pm.expect(jsonData.status).to.eql('SUCCESS');",
+                  "    pm.expect(jsonData.paymentReference).to.not.be.undefined;",
+                  "    pm.expect(jsonData.paymentMethod).to.eql('WALLET');",
+                  "    pm.collectionVariables.set('paymentId', String(jsonData.id));",
+                  "    pm.collectionVariables.set('paymentReference', jsonData.paymentReference);",
+                  "    pm.collectionVariables.set('idempotencyKey', pm.request.headers.get('Idempotency-Key'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "pay-bill-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 223.13,\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "Repeat Identical Request - No Duplicate (201 same reference)",
+          "description": "Replays the exact same body with the same Idempotency-Key. The service returns the ORIGINAL payment, the wallet is NOT debited again, and no duplicate row is created.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Same paymentReference returned (no duplicate)', function () {",
+                  "    pm.expect(jsonData.paymentReference).to.eql(pm.collectionVariables.get('paymentReference'));",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('paymentId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 223.13,\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "Reuse Key With Different Data (409)",
+          "description": "The same Idempotency-Key with a different amount must return 409 IDEMPOTENCY_CONFLICT.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is IDEMPOTENCY_CONFLICT', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('IDEMPOTENCY_CONFLICT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 355.04,\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inspect",
+      "item": [
+        {
+          "name": "Get Payment By Id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Payment matches paymentId', function () {",
+                  "    pm.expect(String(jsonData.id)).to.eql(pm.collectionVariables.get('paymentId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}"
+            }
+          }
+        },
+        {
+          "name": "Get Payment By Reference (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Payment reference matches', function () {",
+                  "    pm.expect(jsonData.paymentReference).to.eql(pm.collectionVariables.get('paymentReference'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/reference/{{paymentReference}}"
+            }
+          }
+        },
+        {
+          "name": "List Payments For Bill (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('At least one payment returned for the bill', function () {",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
+                  "    jsonData.forEach(function (p) { pm.expect(String(p.billId)).to.eql(pm.collectionVariables.get('billId')); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "List My Payments Paginated (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Response is paginated', function () {",
+                  "    pm.expect(jsonData.content).to.not.be.undefined;",
+                  "    pm.expect(jsonData.pageable.pageNumber).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments?page=0&size=5&sort=createdAt,desc"
+            }
+          }
+        },
+        {
+          "name": "List All Payments As Admin (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Response is paginated', function () {",
+                  "    pm.expect(jsonData.content).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments?page=0&size=10"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "Missing JWT (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () { pm.response.to.have.status(401); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error message present', function () {",
+                  "    pm.expect(jsonData.message).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments"
+            }
+          }
+        },
+        {
+          "name": "Missing Idempotency-Key (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is MISSING_HEADER', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('MISSING_HEADER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 100.00,\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "Insufficient Wallet Balance (400)",
+          "description": "Pay a bill larger than the wallet balance (or without a recharge). Expected error code: INSUFFICIENT_WALLET_BALANCE.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is INSUFFICIENT_WALLET_BALANCE', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('INSUFFICIENT_WALLET_BALANCE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "pay-insufficient-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 99999.00,\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "Invalid Currency Enum (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is MALFORMED_REQUEST', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('MALFORMED_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "pay-bad-enum-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": {{organizationId}},\n  \"amount\": 100.00,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bills/{{billId}}/payments"
+            }
+          }
+        },
+        {
+          "name": "Payment Not Found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () { pm.response.to.have.status(404); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is RESOURCE_NOT_FOUND', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/999999"
+            }
+          }
+        },
+        {
+          "name": "Direct Service Call Without Headers (400)",
+          "description": "Debug only: hits port 8086 directly, bypassing the Gateway JWT validation. The service requires the trusted headers, so this returns 400 MISSING_HEADER.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Error code is MISSING_HEADER', function () {",
+                  "    pm.expect(jsonData.error.code).to.eql('MISSING_HEADER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8086/api/payments"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
