@@ -7,6 +7,7 @@ import com.voltaras.authservice.dto.request.RefreshTokenRequest;
 import com.voltaras.authservice.dto.request.RegisterRequest;
 import com.voltaras.authservice.dto.request.ResetPasswordRequest;
 import com.voltaras.authservice.dto.response.AuthResponse;
+import com.voltaras.authservice.dto.response.InternalUserResponse;
 import com.voltaras.authservice.dto.response.RefreshTokenResponse;
 import com.voltaras.authservice.dto.response.UserInfoResponse;
 
@@ -44,4 +45,22 @@ public interface AuthService {
     void logout(Long userId, String sessionId);
 
     UserInfoResponse getCurrentUser(String email);
+
+    /**
+     * Internal service-to-service lookup of the user profile with the
+     * given ID.
+     *
+     * <p>
+     * Used by other VOLTARAS services (e.g. the Payment Service) to
+     * verify that a user exists, is active and to obtain its role before
+     * wallet operations. The lookup is null-safe: a missing role falls
+     * back to CONSUMER and a missing active flag defaults to true.
+     * </p>
+     *
+     * @param userId the user ID to look up
+     * @return the internal user profile
+     * @throws com.voltaras.authservice.exception.ResourceNotFoundException
+     *         when no user exists with the given ID
+     */
+    InternalUserResponse getUserById(Long userId);
 }
