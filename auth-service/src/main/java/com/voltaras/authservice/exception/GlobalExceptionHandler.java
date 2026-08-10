@@ -17,6 +17,7 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -181,6 +182,33 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    /**
+     * Spring MVC throws this for unmapped paths (for example a missing
+     * internal endpoint). It must become a JSON 404 - letting it fall
+     * through to the generic handler turns it into a confusing HTTP 500,
+     * which consuming services (e.g. the Payment Service Feign client)
+     * then surface as an upstream failure.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+            NoResourceFoundException ex, HttpServletRequest request) {
+
+        log.warn("No resource found at {}: {}",
+                request.getRequestURI(), ex.getMessage());
+
+        ErrorResponse response = ErrorResponse.builder()
+                .success(false)
+                .error(ErrorResponse.ErrorDetail.builder()
+                        .code("RESOURCE_NOT_FOUND")
+                        .message("The requested resource was not found")
+                        .build())
+                .timestamp(LocalDateTime.now())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
