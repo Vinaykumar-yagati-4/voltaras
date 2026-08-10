@@ -93,20 +93,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.remove("X-User-Email");
                         headers.remove("X-User-Role");
 
-                        headers.set(
-                                "X-User-Id",
-                                String.valueOf(userId)
-                        );
-
-                        headers.set(
-                                "X-User-Email",
-                                email
-                        );
-
-                        headers.set(
-                                "X-User-Role",
-                                role
-                        );
+                        headers.set("X-User-Id", String.valueOf(userId));
+                        headers.set("X-User-Email", email);
+                        headers.set("X-User-Role", role);
                     })
                     .build();
 
@@ -131,9 +120,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return path.equals("/api/auth/register")
                 || path.equals("/api/auth/login")
                 || path.equals("/api/auth/refresh-token")
-                // Payment Service webhook: protected by its own shared
-                // secret (X-Razorpay-Signature), no JWT is required.
+                || path.equals("/api/auth/forgot-password")
+                || path.equals("/api/auth/reset-password")
                 || path.startsWith("/api/payments/webhooks/")
+                ||path.startsWith("/api/auth/internal/users/")
                 || path.equals("/actuator")
                 || path.startsWith("/actuator/");
     }

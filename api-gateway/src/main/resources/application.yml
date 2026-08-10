@@ -9,7 +9,6 @@ spring:
     gateway:
       server:
         webflux:
-
           globalcors:
             add-to-simple-url-handler-mapping: true
 
@@ -18,7 +17,6 @@ spring:
                 allowedOrigins:
                   - "http://localhost:3000"
                   - "http://localhost:5173"
-
                   - "http://localhost:8081"
                   - "http://localhost:8082"
                   - "http://localhost:8083"
@@ -26,6 +24,7 @@ spring:
                   - "http://localhost:8085"
                   - "http://localhost:8086"
                   - "http://localhost:8087"
+                  - "http://localhost:8088"
 
                 allowedMethods:
                   - GET
@@ -47,44 +46,45 @@ spring:
                 maxAge: 3600
 
           routes:
+            - id: auth-internal-users
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/auth/internal/users/**
 
-            # Auth Service
             - id: auth-service
               uri: lb://AUTH-SERVICE
               predicates:
                 - Path=/api/auth/**
 
-            # User Service
             - id: user-service
               uri: lb://USER-SERVICE
               predicates:
                 - Path=/api/users/**
 
-            # Meter Reading Service
             - id: meter-reading-service
               uri: lb://METER-READING-SERVICE
               predicates:
                 - Path=/api/meter-readings/**
 
-            # Organization Service
             - id: organization-service
               uri: lb://ORGANIZATION-SERVICE
               predicates:
                 - Path=/api/organizations/**,/api/buildings/**,/api/blocks/**,/api/floors/**,/api/units/**,/api/admin/organizations/**
 
-            # Payment Service
-            # Keep this before bill-service because /api/bills/{billId}/payments
-            # belongs to Payment Service, not Bill Service.
             - id: payment-service
               uri: lb://PAYMENT-SERVICE
               predicates:
                 - Path=/api/payments/**,/api/recharges/**,/api/wallet/**,/api/wallets/**,/api/bills/*/payments/**
 
-            # Bill Service
             - id: bill-service
               uri: lb://BILL-SERVICE
               predicates:
                 - Path=/api/bills/**
+
+            - id: notification-service
+              uri: lb://NOTIFICATION-SERVICE
+              predicates:
+                - Path=/api/notifications/**
 
 eureka:
   client:
