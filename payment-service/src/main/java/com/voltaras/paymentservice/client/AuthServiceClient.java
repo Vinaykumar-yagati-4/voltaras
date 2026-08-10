@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.PathVariable;
  * <p>
  * The client is resolved through Eureka using the service name
  * {@code auth-service} (load-balanced by Spring Cloud LoadBalancer). The
- * Bearer access token of the incoming request is forwarded automatically
- * by the request interceptor in {@code FeignConfig}, so the Auth Service
- * internal endpoint always receives a valid JWT.
+ * internal endpoint is unauthenticated (permitAll) so service-to-service
+ * calls work without a user JWT, and the API Gateway blocks
+ * {@code /api/auth/internal/**} so it is never exposed publicly.
  * </p>
  *
  * <p>
@@ -30,9 +30,8 @@ public interface AuthServiceClient {
      * active) of the user with the given ID.
      *
      * <p>
-     * The Auth Service enforces that the requested ID matches the
-     * forwarded access token, so this can only ever return the caller's
-     * own profile.
+     * The role defaults to CONSUMER and active defaults to true when the
+     * stored values are missing, so this never fails for legacy rows.
      * </p>
      *
      * @param userId user ID from the X-User-Id gateway header

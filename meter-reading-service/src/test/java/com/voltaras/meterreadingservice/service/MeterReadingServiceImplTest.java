@@ -39,6 +39,7 @@ class MeterReadingServiceImplTest {
 
     private static final Long CONSUMER_ID = 100L;
     private static final Long ADMIN_ID = 1L;
+    private static final Long READING_ID = 50L;
 
     @Mock
     private MeterReadingRepository meterReadingRepository;
@@ -60,28 +61,29 @@ class MeterReadingServiceImplTest {
 
         SubmitMeterReadingRequest request = SubmitMeterReadingRequest.builder()
                 .meterNumber("MTR-001")
-                .billingMonth(7)
-                .billingYear(2026)
                 .previousReading(new BigDecimal("900.000"))
                 .currentReading(new BigDecimal("1000.000"))
                 .readingDate(LocalDate.of(2026, 7, 31))
                 .build();
 
-        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndBillingMonthAndBillingYear(
-                eq(CONSUMER_ID), eq("MTR-001"), eq(7), eq(2026))).thenReturn(false);
+        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndReadingDate(
+                eq(CONSUMER_ID), eq("MTR-001"), eq(LocalDate.of(2026, 7, 31))))
+                .thenReturn(false);
 
         when(meterReadingRepository.save(any(MeterReading.class)))
                 .thenAnswer(invocation -> {
                     MeterReading reading = invocation.getArgument(0);
-                    reading.setId(50L);
+                    reading.setId(READING_ID);
                     return reading;
                 });
 
         MeterReadingResponse response = meterReadingService.submitReading(CONSUMER_ID, request);
 
         assertThat(response).isNotNull();
-        assertThat(response.getId()).isEqualTo(50L);
+        assertThat(response.getId()).isEqualTo(READING_ID);
         assertThat(response.getAuthUserId()).isEqualTo(CONSUMER_ID);
+        assertThat(response.getBillingMonth()).isEqualTo(7);
+        assertThat(response.getBillingYear()).isEqualTo(2026);
         assertThat(response.getUnitsConsumed()).isEqualByComparingTo("100.000");
         assertThat(response.getStatus()).isEqualTo(MeterReadingStatus.SUBMITTED);
         assertThat(response.getVerifiedBy()).isNull();
@@ -94,15 +96,14 @@ class MeterReadingServiceImplTest {
 
         SubmitMeterReadingRequest request = SubmitMeterReadingRequest.builder()
                 .meterNumber("MTR-001")
-                .billingMonth(7)
-                .billingYear(2026)
                 .previousReading(new BigDecimal("900.000"))
                 .currentReading(new BigDecimal("1000.000"))
                 .readingDate(LocalDate.of(2026, 7, 31))
                 .build();
 
-        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndBillingMonthAndBillingYear(
-                eq(CONSUMER_ID), eq("MTR-001"), eq(7), eq(2026))).thenReturn(true);
+        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndReadingDate(
+                eq(CONSUMER_ID), eq("MTR-001"), eq(LocalDate.of(2026, 7, 31))))
+                .thenReturn(true);
 
         assertThatThrownBy(() -> meterReadingService.submitReading(CONSUMER_ID, request))
                 .isInstanceOf(DuplicateResourceException.class)
@@ -117,8 +118,6 @@ class MeterReadingServiceImplTest {
 
         SubmitMeterReadingRequest request = SubmitMeterReadingRequest.builder()
                 .meterNumber("MTR-001")
-                .billingMonth(7)
-                .billingYear(2026)
                 .previousReading(new BigDecimal("1000.000"))
                 .currentReading(new BigDecimal("900.000"))
                 .readingDate(LocalDate.of(2026, 7, 31))
@@ -139,16 +138,16 @@ class MeterReadingServiceImplTest {
     @DisplayName("Get my readings: returns only the caller's readings")
     void getMyReadings_success_returnsOwnReadings() {
 
-        MeterReading reading = buildSubmittedReading(50L);
+        MeterReading reading = buildSubmittedReading();
 
         when(meterReadingRepository
-                .findAllByAuthUserIdOrderByBillingYearDescBillingMonthDesc(CONSUMER_ID))
+                .findAllByAuthUserIdOrderByReadingDateDesc(CONSUMER_ID))
                 .thenReturn(List.of(reading));
 
         List<MeterReadingResponse> response = meterReadingService.getMyReadings(CONSUMER_ID);
 
         assertThat(response).hasSize(1);
-        assertThat(response.getFirst().getId()).isEqualTo(50L);
+        assertThat(response.getFirst().getId()).isEqualTo(READING_ID);
         assertThat(response.getFirst().getAuthUserId()).isEqualTo(CONSUMER_ID);
     }
 
@@ -156,10 +155,10 @@ class MeterReadingServiceImplTest {
     @DisplayName("Get my reading by id: another consumer's reading is not found")
     void getMyReadingById_foreignReading_throwsResourceNotFound() {
 
-        when(meterReadingRepository.findByIdAndAuthUserId(50L, CONSUMER_ID))
+        when(meterReadingRepository.findByIdAndAuthUserId(READING_ID, CONSUMER_ID))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> meterReadingService.getMyReadingById(CONSUMER_ID, 50L))
+        assertThatThrownBy(() -> meterReadingService.getMyReadingById(CONSUMER_ID, READING_ID))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("not found");
     }
@@ -172,9 +171,9 @@ class MeterReadingServiceImplTest {
     @DisplayName("Update: submitted reading updated and units recalculated")
     void updateMyReading_submittedReading_success() {
 
-        MeterReading reading = buildSubmittedReading(50L);
+        MeterReading reading = buildSubmittedReading();
 
-        when(meterReadingRepository.findByIdAndAuthUserId(50L, CONSUMER_ID))
+        when(meterReadingRepository.findByIdAndAuthUserId(READING_ID, CONSUMER_ID))
                 .thenReturn(Optional.of(reading));
         when(meterReadingRepository.save(any(MeterReading.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -186,7 +185,7 @@ class MeterReadingServiceImplTest {
                 .build();
 
         MeterReadingResponse response =
-                meterReadingService.updateMyReading(CONSUMER_ID, 50L, request);
+                meterReadingService.updateMyReading(CONSUMER_ID, READING_ID, request);
 
         assertThat(response.getPreviousReading()).isEqualByComparingTo("1000.000");
         assertThat(response.getCurrentReading()).isEqualByComparingTo("1200.500");
@@ -198,12 +197,12 @@ class MeterReadingServiceImplTest {
     @DisplayName("Update: verified reading cannot be edited")
     void updateMyReading_verifiedReading_throwsForbidden() {
 
-        MeterReading verified = buildSubmittedReading(50L);
+        MeterReading verified = buildSubmittedReading();
         verified.setStatus(MeterReadingStatus.VERIFIED);
         verified.setVerifiedBy(ADMIN_ID);
         verified.setVerifiedAt(java.time.LocalDateTime.now());
 
-        when(meterReadingRepository.findByIdAndAuthUserId(50L, CONSUMER_ID))
+        when(meterReadingRepository.findByIdAndAuthUserId(READING_ID, CONSUMER_ID))
                 .thenReturn(Optional.of(verified));
 
         UpdateMeterReadingRequest request = UpdateMeterReadingRequest.builder()
@@ -212,7 +211,7 @@ class MeterReadingServiceImplTest {
                 .readingDate(LocalDate.of(2026, 8, 1))
                 .build();
 
-        assertThatThrownBy(() -> meterReadingService.updateMyReading(CONSUMER_ID, 50L, request))
+        assertThatThrownBy(() -> meterReadingService.updateMyReading(CONSUMER_ID, READING_ID, request))
                 .isInstanceOf(ForbiddenOperationException.class)
                 .hasMessageContaining("cannot be modified");
 
@@ -227,12 +226,12 @@ class MeterReadingServiceImplTest {
     @DisplayName("Delete: submitted reading deleted")
     void deleteMyReading_submittedReading_success() {
 
-        MeterReading reading = buildSubmittedReading(50L);
+        MeterReading reading = buildSubmittedReading();
 
-        when(meterReadingRepository.findByIdAndAuthUserId(50L, CONSUMER_ID))
+        when(meterReadingRepository.findByIdAndAuthUserId(READING_ID, CONSUMER_ID))
                 .thenReturn(Optional.of(reading));
 
-        meterReadingService.deleteMyReading(CONSUMER_ID, 50L);
+        meterReadingService.deleteMyReading(CONSUMER_ID, READING_ID);
 
         verify(meterReadingRepository).delete(reading);
     }
@@ -241,13 +240,13 @@ class MeterReadingServiceImplTest {
     @DisplayName("Delete: rejected reading cannot be deleted")
     void deleteMyReading_rejectedReading_throwsForbidden() {
 
-        MeterReading rejected = buildSubmittedReading(50L);
+        MeterReading rejected = buildSubmittedReading();
         rejected.setStatus(MeterReadingStatus.REJECTED);
 
-        when(meterReadingRepository.findByIdAndAuthUserId(50L, CONSUMER_ID))
+        when(meterReadingRepository.findByIdAndAuthUserId(READING_ID, CONSUMER_ID))
                 .thenReturn(Optional.of(rejected));
 
-        assertThatThrownBy(() -> meterReadingService.deleteMyReading(CONSUMER_ID, 50L))
+        assertThatThrownBy(() -> meterReadingService.deleteMyReading(CONSUMER_ID, READING_ID))
                 .isInstanceOf(ForbiddenOperationException.class);
 
         verify(meterReadingRepository, never()).delete(any(MeterReading.class));
@@ -261,14 +260,14 @@ class MeterReadingServiceImplTest {
     @DisplayName("Admin verify: status VERIFIED with verifiedBy and verifiedAt stamped")
     void verifyReading_adminRole_success() {
 
-        MeterReading reading = buildSubmittedReading(50L);
+        MeterReading reading = buildSubmittedReading();
 
-        when(meterReadingRepository.findById(50L)).thenReturn(Optional.of(reading));
+        when(meterReadingRepository.findById(READING_ID)).thenReturn(Optional.of(reading));
         when(meterReadingRepository.save(any(MeterReading.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MeterReadingResponse response =
-                meterReadingService.verifyReading(ADMIN_ID, "ADMIN", 50L);
+                meterReadingService.verifyReading(ADMIN_ID, "ADMIN", READING_ID);
 
         assertThat(response.getStatus()).isEqualTo(MeterReadingStatus.VERIFIED);
         assertThat(response.getVerifiedBy()).isEqualTo(ADMIN_ID);
@@ -279,9 +278,9 @@ class MeterReadingServiceImplTest {
     @DisplayName("Admin reject: status REJECTED with remarks, verifiedBy and verifiedAt")
     void rejectReading_adminRole_success() {
 
-        MeterReading reading = buildSubmittedReading(50L);
+        MeterReading reading = buildSubmittedReading();
 
-        when(meterReadingRepository.findById(50L)).thenReturn(Optional.of(reading));
+        when(meterReadingRepository.findById(READING_ID)).thenReturn(Optional.of(reading));
         when(meterReadingRepository.save(any(MeterReading.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -290,7 +289,7 @@ class MeterReadingServiceImplTest {
                 .build();
 
         MeterReadingResponse response =
-                meterReadingService.rejectReading(ADMIN_ID, "ADMIN", 50L, request);
+                meterReadingService.rejectReading(ADMIN_ID, "ADMIN", READING_ID, request);
 
         assertThat(response.getStatus()).isEqualTo(MeterReadingStatus.REJECTED);
         assertThat(response.getRemarks()).isEqualTo(request.getRemarks());
@@ -302,7 +301,7 @@ class MeterReadingServiceImplTest {
     @DisplayName("Admin verify: consumer role is rejected")
     void verifyReading_consumerRole_throwsForbidden() {
 
-        assertThatThrownBy(() -> meterReadingService.verifyReading(CONSUMER_ID, "CONSUMER", 50L))
+        assertThatThrownBy(() -> meterReadingService.verifyReading(CONSUMER_ID, "CONSUMER", READING_ID))
                 .isInstanceOf(ForbiddenOperationException.class)
                 .hasMessageContaining("Only ADMIN");
 
@@ -324,7 +323,7 @@ class MeterReadingServiceImplTest {
     @DisplayName("Admin get all: filters by status when provided")
     void getAllReadingsForAdmin_statusFilter_returnsFilteredList() {
 
-        MeterReading verified = buildSubmittedReading(50L);
+        MeterReading verified = buildSubmittedReading();
         verified.setStatus(MeterReadingStatus.VERIFIED);
 
         when(meterReadingRepository.findAllByStatusOrderByCreatedAtDesc(MeterReadingStatus.VERIFIED))
@@ -351,10 +350,10 @@ class MeterReadingServiceImplTest {
     // Helpers
     // ------------------------------------------------------------------
 
-    private MeterReading buildSubmittedReading(Long id) {
+    private MeterReading buildSubmittedReading() {
 
         return MeterReading.builder()
-                .id(id)
+                .id(READING_ID)
                 .authUserId(CONSUMER_ID)
                 .meterNumber("MTR-001")
                 .billingMonth(7)

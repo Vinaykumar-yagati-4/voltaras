@@ -7,6 +7,7 @@ import com.voltaras.authservice.dto.request.RefreshTokenRequest;
 import com.voltaras.authservice.dto.request.RegisterRequest;
 import com.voltaras.authservice.dto.request.ResetPasswordRequest;
 import com.voltaras.authservice.dto.response.AuthResponse;
+import com.voltaras.authservice.dto.response.InternalUserResponse;
 import com.voltaras.authservice.dto.response.RefreshTokenResponse;
 import com.voltaras.authservice.dto.response.UserInfoResponse;
 import com.voltaras.authservice.entity.PasswordResetToken;
@@ -49,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -822,6 +824,37 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public InternalUserResponse getUserById(Long userId) {
+
+        User user = userRepository
+                .findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User",
+                                "id",
+                                userId
+                        )
+                );
+
+        /*
+         * Null-safe internal lookup (consuming services must never see a
+         * 500 for legacy or partially-migrated rows): a missing role
+         * falls back to CONSUMER and a missing active flag defaults to
+         * true.
+         */
+        Boolean isActive = user.getIsActive();
+
+        return InternalUserResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(extractRole(user))
+                .active(isActive == null || isActive)
+                .build();
+    }
+
     /**
      * Extracts the first assigned role from the user.
      * Falls back to CONSUMER when the user has no roles.
@@ -836,13 +869,14 @@ public class AuthServiceImpl implements AuthService {
 
         return user.getUserRoles()
                 .stream()
-                .findFirst()
-                .map(userRole ->
-                        userRole
-                                .getRole()
+                .map(UserRole::getRole)
+                .filter(Objects::nonNull)
+                .map(role ->
+                        role
                                 .getName()
                                 .name()
                 )
+                .findFirst()
                 .orElse(RoleType.CONSUMER.name());
     }
 }

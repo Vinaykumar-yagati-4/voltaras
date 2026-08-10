@@ -8,6 +8,7 @@ import com.voltaras.authservice.dto.request.RegisterRequest;
 import com.voltaras.authservice.dto.request.ResetPasswordRequest;
 import com.voltaras.authservice.dto.response.AuthResponse;
 import com.voltaras.authservice.dto.response.ErrorResponse;
+import com.voltaras.authservice.dto.response.InternalUserResponse;
 import com.voltaras.authservice.dto.response.RefreshTokenResponse;
 import com.voltaras.authservice.dto.response.UserInfoResponse;
 import com.voltaras.authservice.security.CustomUserDetails;
@@ -441,5 +442,52 @@ public class AuthController {
                         "Logged out successfully"
                 )
         );
+    }
+
+    @Operation(
+            summary = "Get internal user profile (service-to-service)",
+            description = """
+                    Internal API used by other VOLTARAS services (e.g. the
+                    Payment Service) to verify that a user exists, is active
+                    and to obtain its role before wallet operations.
+
+                    Called with the load-balanced service name, never through
+                    the API Gateway, so no Bearer token is required. The
+                    lookup is null-safe: a missing role falls back to
+                    CONSUMER and a missing active flag defaults to true.
+                    """,
+            security = {}
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Internal user profile retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = InternalUserResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No user exists with the given ID",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @GetMapping("/internal/users/{userId}")
+    public ResponseEntity<InternalUserResponse> getInternalUser(
+            @PathVariable("userId") Long userId
+    ) {
+
+        InternalUserResponse response =
+                authService.getUserById(userId);
+
+        return ResponseEntity.ok(response);
     }
 }

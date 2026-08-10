@@ -71,6 +71,18 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
+                        /*
+                         * Internal service-to-service APIs (e.g. the user
+                         * lookup used by the Payment Service). These are
+                         * called with the load-balanced service name,
+                         * never through the API Gateway, so no user JWT is
+                         * available - access is allowed without one.
+                         */
+                        .requestMatchers(
+                                "/api/auth/internal/**"
+                        )
+                        .permitAll()
+
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/register",
