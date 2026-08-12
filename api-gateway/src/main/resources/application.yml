@@ -9,22 +9,22 @@ spring:
     gateway:
       server:
         webflux:
+          # Strips the Origin header before forwarding requests downstream so
+          # services never see a browser Origin and cannot emit their own CORS
+          # headers. Gateway CORS processing (CorsWebFilter) runs before this
+          # gateway filter chain, so the CORS response headers are unaffected.
+          default-filters:
+            - RemoveRequestHeader=Origin
+
           globalcors:
             add-to-simple-url-handler-mapping: true
 
             cors-configurations:
               '[/**]':
-                allowedOrigins:
-                  - "http://localhost:3000"
-                  - "http://localhost:5173"
-                  - "http://localhost:8081"
-                  - "http://localhost:8082"
-                  - "http://localhost:8083"
-                  - "http://localhost:8084"
-                  - "http://localhost:8085"
-                  - "http://localhost:8086"
-                  - "http://localhost:8087"
-                  - "http://localhost:8088"
+                # Development policy: any localhost / 127.0.0.1 port.
+                # Production origins are provided externally through the
+                # CORS_ALLOWED_ORIGIN_PATTERNS environment variable.
+                allowedOriginPatterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,http://127.0.0.1:*}
 
                 allowedMethods:
                   - GET
@@ -42,7 +42,9 @@ spring:
                   - X-User-Id
                   - X-User-Role
 
-                allowCredentials: true
+                # Credentials are never combined with wildcard origins; the
+                # JWT is carried in the Authorization header.
+                allowCredentials: false
                 maxAge: 3600
 
           routes:
@@ -85,6 +87,11 @@ spring:
               uri: lb://NOTIFICATION-SERVICE
               predicates:
                 - Path=/api/notifications/**
+
+            - id: complaint-service
+              uri: lb://COMPLAINT-SERVICE
+              predicates:
+                - Path=/api/complaints/**,/api/admin/complaints/**
 
 eureka:
   client:
