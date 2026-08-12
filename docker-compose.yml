@@ -1,0 +1,396 @@
+
+name: voltaras
+
+networks:
+  voltaras-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  rabbitmq_data:
+
+services:
+
+  # ----------------------------------------------------------
+  # Infrastructure
+  # ----------------------------------------------------------
+
+  mysql:
+    image: mysql:8.0
+    container_name: voltaras-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      # Application DB user (created by the official image, then
+      # granted per-database privileges by docker/mysql/init).
+      MYSQL_USER: ${DB_USERNAME:-voltaras}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # First-run only: creates all VOLTARAS databases + grants.
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: voltaras-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-voltaras}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ----------------------------------------------------------
+  # Service registry
+  # ----------------------------------------------------------
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+    image: voltaras/eureka-server:latest
+    container_name: voltaras-eureka-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8761'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  # ----------------------------------------------------------
+  # API Gateway (single entry point, single CORS owner)
+  # ----------------------------------------------------------
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    image: voltaras/api-gateway:latest
+    container_name: voltaras-api-gateway
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    environment:
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ALLOWED_ORIGIN_PATTERNS: ${CORS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:*,http://127.0.0.1:*}
+    ports:
+      - "8080:8080"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # ----------------------------------------------------------
+  # VOLTARAS microservices
+  # ----------------------------------------------------------
+
+  auth-service:
+    build:
+      context: ./auth-service
+    image: voltaras/auth-service:latest
+    container_name: voltaras-auth-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      # application.yml hardcodes the datasource URL host; overridden
+      # via environment variables for container-to-container routing.
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/auth_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # Password-reset e-mail (optional; console provider logs the link).
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      PASSWORD_RESET_MAIL_PROVIDER: ${PASSWORD_RESET_MAIL_PROVIDER:-smtp}
+    ports:
+      - "8081:8081"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8081'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  user-service:
+    build:
+      context: ./user-service
+    image: voltaras/user-service:latest
+    container_name: voltaras-user-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    ports:
+      - "8082:8082"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8082'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  meter-reading-service:
+    build:
+      context: ./meter-reading-service
+    image: voltaras/meter-reading-service:latest
+    container_name: voltaras-meter-reading-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/meter_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      METER_DB_USERNAME: ${DB_USERNAME:-voltaras}
+      METER_DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "8083:8083"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8083'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  meter-management-service:
+    build:
+      context: ./meter-management-service
+    image: voltaras/meter-management-service:latest
+    container_name: voltaras-meter-management-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/meter_management_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "8089:8089"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8089'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  bill-service:
+    build:
+      context: ./bill-service
+    image: voltaras/bill-service:latest
+    container_name: voltaras-bill-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/bill_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "8084:8084"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8084'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  organization-service:
+    build:
+      context: ./organization-service
+    image: voltaras/organization-service:latest
+    container_name: voltaras-organization-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: organization_db
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "8085:8085"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8085'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  payment-service:
+    build:
+      context: ./payment-service
+    image: voltaras/payment-service:latest
+    container_name: voltaras-payment-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: payment_db
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      # Inter-service HTTP base URLs (container-to-container).
+      BILL_SERVICE_URL: http://bill-service:8084
+      ORGANIZATION_SERVICE_URL: http://organization-service:8085
+      # Razorpay credentials (required at startup; sample values in .env).
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?RAZORPAY_KEY_ID is required}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?RAZORPAY_KEY_SECRET is required}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?RAZORPAY_WEBHOOK_SECRET is required}
+    ports:
+      - "8086:8086"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8086'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  complaint-service:
+    build:
+      context: ./complaint-service
+    image: voltaras/complaint-service:latest
+    container_name: voltaras-complaint-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: complaint_db
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-voltaras}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    ports:
+      - "8087:8087"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8087'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  notification-service:
+    build:
+      context: ./notification-service
+    image: voltaras/notification-service:latest
+    container_name: voltaras-notification-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: notification_db
+      DB_USERNAME: ${DB_USERNAME:-voltaras}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-voltaras}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    ports:
+      - "8088:8088"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':</dev/tcp/127.0.0.1/8088'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
