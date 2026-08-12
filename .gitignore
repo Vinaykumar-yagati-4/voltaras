@@ -1,2 +1,8 @@
-.idea/ 
+.idea/
 .run/
+
+# Local Docker environment — contains local credentials. Copy from .env.example.
+.env
+
+# Logs
+*.log
