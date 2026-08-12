@@ -1,15 +1,22 @@
 package com.voltaras.notificationservice.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.voltaras.notificationservice.event.BillGeneratedEvent;
+import com.voltaras.notificationservice.event.ComplaintStatusChangedEvent;
+import com.voltaras.notificationservice.event.PaymentCompletedEvent;
+import com.voltaras.notificationservice.event.RechargeSuccessfulEvent;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
 
 /**
  * RabbitMQ topology for the VOLTARAS Notification Service.
@@ -122,10 +129,35 @@ public class RabbitMQConfig {
     /**
      * Serializes events to/from JSON. Spring Boot applies this bean to the
      * auto-configured {@link RabbitTemplate} and listener container factory.
+     *
+     * <p>
+     * A logical type-ID mapping is registered so events published by the
+     * other VOLTARAS services (Bill, Payment, Complaint, ...) — whose event
+     * classes live in different packages and are sent under the logical ID
+     * e.g. {@code ComplaintStatusChangedEvent} — deserialize into the event
+     * classes declared here. Messages whose {@code __TypeId__} is a fully
+     * qualified class name (previous producers) still resolve by class name.
+     * </p>
      */
     @Bean
     public Jackson2JsonMessageConverter jackson2JsonMessageConverter(ObjectMapper objectMapper) {
-        return new Jackson2JsonMessageConverter(objectMapper);
+
+        Jackson2JsonMessageConverter converter =
+                new Jackson2JsonMessageConverter(objectMapper);
+
+        DefaultJackson2JavaTypeMapper typeMapper =
+                new DefaultJackson2JavaTypeMapper();
+
+        typeMapper.setIdClassMapping(Map.of(
+                "BillGeneratedEvent", BillGeneratedEvent.class,
+                "PaymentCompletedEvent", PaymentCompletedEvent.class,
+                "RechargeSuccessfulEvent", RechargeSuccessfulEvent.class,
+                "ComplaintStatusChangedEvent", ComplaintStatusChangedEvent.class
+        ));
+
+        converter.setJavaTypeMapper(typeMapper);
+
+        return converter;
     }
 
     @Bean
