@@ -184,13 +184,13 @@ For an ADMIN token: register a second user and promote it to `ADMIN` in
 `auth_db` (add a row in `user_roles` referencing the `ADMIN` role), then use
 that token for an admin-protected API such as `GET /api/admin/complaints`.
 
-## Demo data (30 dummy users)
+## Demo data (30 demo users)
 
 For local API/Swagger verification the stack ships with an idempotent demo
-seeder that creates 30 dummy users (1 ADMIN + 29 CONSUMER), profiles, a demo
+seeder that creates 30 demo users (1 ADMIN + 29 CONSUMER), profiles, a demo
 organization with memberships, meters, verified meter readings, bills, wallet
 payments and complaints — through the API Gateway, with no real data and no
-hard-coded secrets. See `docs/15_DOCKER_DUMMY_DATA.md` for full details.
+hard-coded secrets. See `docs/15_DOCKER_DEMO_DATA.md` for full details.
 
 ```bash
 # Windows PowerShell (from the repository root)
