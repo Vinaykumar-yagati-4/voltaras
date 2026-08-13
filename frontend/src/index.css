@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 font-sans text-navy-900 antialiased;
+  }
+
+  /* Visible, consistent keyboard focus */
+  *:focus-visible {
+    outline: 2px solid theme('colors.volt.500');
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: theme('colors.volt.100');
+    color: theme('colors.navy.900');
+  }
+}
+
+@layer components {
+  .focus-ring {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-500;
+  }
+}
