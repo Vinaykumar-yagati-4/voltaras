@@ -5,7 +5,7 @@
     Creates the local demo dataset used for Swagger/OpenAPI verification of the
     VOLTARAS microservice stack running in Docker Compose.
 
-      * 30 dummy users  (1 ADMIN = sunny, 29 CONSUMER)
+      * 30 demo users  (1 ADMIN = sunny, 29 CONSUMER)
       * user profiles   (user-service)
       * 1 demo organization + memberships (organization-service)
       * 30 meters assigned to consumers (meter-management-service)
@@ -15,7 +15,7 @@
       * complaints (complaint-service)
 
     Design rules honoured by this script:
-      1. No real personal data - only clean dummy names / Hyderabad dummy addresses.
+      1. No real personal data - only clean demo names / Hyderabad demo addresses.
       2. No hard-coded secrets - DB credentials are read from the repo root .env
          (gitignored) or from environment variables.
       3. Does not modify docker-compose.yml or any service code.
@@ -26,8 +26,7 @@
          Auth Service has no admin-role API) and for final verification counts.
       8. Seeding only starts after the gateway is reachable, i.e. after JPA
          (ddl-auto: update) has created all tables.
-      9. Existing Docker test accounts are never touched or deleted.
-     10. One common dummy password for all demo users: Voltaras@123
+      9. Existing Docker test accounts are never touched or deleted.      10. One common demo password for all demo users: Voltaras@123
 
     Usage (from the repository root):
         powershell -ExecutionPolicy Bypass -File docker/seed/seed-docker-demo-data.ps1
@@ -63,7 +62,7 @@ $OrgCode         = "VOLTARAS_DEMO"
 $OrgName         = "Voltaras Demo Society"
 $AdminName       = "sunny"
 
-# 15 required names + 15 generated clean dummy names = 30 users.
+# 15 required names + 15 generated clean demo names = 30 users.
 $Names = @(
     "soumya", "anil", "vinay", "pavan", "tarun",
     "bharath", "satya", "srivalli", "rekha", "sunny",
@@ -73,7 +72,7 @@ $Names = @(
     "manoj", "priya", "charan", "harika", "naveen"
 )
 
-# Hyderabad / Telangana style dummy addresses (cycled deterministically).
+# Hyderabad / Telangana style demo addresses (cycled deterministically).
 $Addresses = @(
     @{ Line = "Flat 302, Sri Sai Residency, Jubilee Hills"; Pincode = "500033" },
     @{ Line = "H.No 12-34/5, Madhapur Main Road";          Pincode = "500081" },
@@ -309,7 +308,7 @@ if ($null -eq $org) {
         name             = $OrgName
         organizationCode = $OrgCode
         organizationType = "APARTMENT"
-        description      = "$SeedTag Dummy apartment society for local demo data."
+        description      = "$SeedTag Demo apartment society for local development."
         email            = "demo.society@$EmailDomain"
         phone            = "9000000000"
         addressLine1     = "Plot 12, Road No 2, Kukatpally Housing Board"
@@ -509,13 +508,30 @@ foreach ($b in $bills) {
 Write-Host "  $paid / $($bills.Count) bills paid from demo wallets."
 
 # ---------------------------------------------------------------------------
-# 10. Complaints (idempotent by subject check)
+# 10. Complaints (idempotent - a consumer never gets a second complaint)
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== Bonus: sample complaints ===" -ForegroundColor Cyan
 
 $complaints = 0
 $categories = $null
+$subjectIndex = 0
+# Fixed subset of 10 consumers (first 10 consumers; the admin is excluded) so
+# the step is strictly idempotent - re-runs never add complaints for new users.
+# One realistic electricity-service subject per consumer, kept in sync with the
+# demo complaint records documented in docs/15_DOCKER_DEMO_DATA.md.
+$complaintSubjects = @(
+    "Incorrect billing amount",     # soumya
+    "Meter reading mismatch",       # anil
+    "Payment not reflected",        # vinay
+    "Unexpected usage increase",    # pavan
+    "Meter display issue",          # tarun
+    "Bill due-date clarification",  # bharath
+    "Wallet balance discrepancy",   # satya
+    "Service interruption report",  # srivalli
+    "Frequent voltage fluctuation", # rekha
+    "Meter not reporting readings"  # uday
+)
 $consumersForComplaints = $consumers | Select-Object -First 10
 foreach ($u in $consumersForComplaints) {
     try {
@@ -523,22 +539,22 @@ foreach ($u in $consumersForComplaints) {
             $categories = Invoke-Json "GET" "$GatewayUrl/api/complaints/categories" $null $u.token
         }
         $categoryId = $categories[0].id
-        $subject = "$SeedTag Dummy complaint - $($u.name)"
+        $subject = $complaintSubjects[$subjectIndex]
+        $subjectIndex++
 
         $mine = Invoke-Json "GET" "$GatewayUrl/api/complaints" $null $u.token
-        $already = $mine.content | Where-Object { $_.subject -eq $subject }
-        if (-not $already) {
+        if (-not $mine.content) {
             $complaintBody = @{
                 categoryId  = $categoryId
                 subject     = $subject
-                description = "This is a dummy demo complaint created by the local Docker seed script for user $($u.email). No real data involved."
+                description = "Sample complaint created for local Docker demonstration by the VOLTARAS demo data seeder. Fictional record - no real data involved."
             }
             Invoke-Json "POST" "$GatewayUrl/api/complaints" $complaintBody $u.token | Out-Null
             $complaints++
         }
     } catch { }
 }
-Write-Host "  $complaints complaints created (dummy only)."
+Write-Host "  $complaints complaints created (demo only)."
 
 # ---------------------------------------------------------------------------
 # 11. Verification
@@ -573,7 +589,7 @@ $counts = @(
     @{ Label = "meter readings";             Sql = "SELECT COUNT(*) FROM meter_readings WHERE remarks LIKE '%$SeedTag%'"; Db = "meter_db" },
     @{ Label = "bills";                      Sql = "SELECT COUNT(*) FROM bills WHERE remarks LIKE '%$SeedTag%'"; Db = "bill_db" },
     @{ Label = "payments";                   Sql = "SELECT COUNT(*) FROM payments"; Db = "payment_db" },
-    @{ Label = "complaints";                 Sql = "SELECT COUNT(*) FROM complaints WHERE subject LIKE '%$SeedTag%'"; Db = "complaint_db" }
+    @{ Label = "complaints";                 Sql = "SELECT COUNT(*) FROM complaints WHERE subject IN ('Incorrect billing amount','Meter reading mismatch','Payment not reflected','Unexpected usage increase','Meter display issue','Bill due-date clarification','Wallet balance discrepancy','Service interruption report','Frequent voltage fluctuation','Meter not reporting readings')"; Db = "complaint_db" }
 )
 foreach ($c in $counts) {
     $val = Mysql-Query $c.Db $c.Sql
