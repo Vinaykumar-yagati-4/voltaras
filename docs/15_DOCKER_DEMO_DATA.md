@@ -1,10 +1,10 @@
-# VOLTARAS — Docker Demo Data (30 Dummy Users)
+# VOLTARAS — Docker Demo Data (30 Demo Users)
 
 Local demo data for the VOLTARAS microservice stack running in Docker Compose,
 used for **Swagger/OpenAPI and API Gateway verification** (project policy: API
 verification is done through Swagger/OpenAPI, not Postman).
 
-The seeding setup creates **30 dummy users** (1 ADMIN + 29 CONSUMER) plus
+The seeding setup creates **30 demo users** (1 ADMIN + 29 CONSUMER) plus
 sample organizations, meters, meter readings, bills, payments and complaints —
 all through the public APIs (via the API Gateway) with **no real personal data
 and no hard-coded secrets**.
@@ -15,7 +15,7 @@ and no hard-coded secrets**.
 
 | # | Dataset | Service / DB | Count |
 |---|---|---|---|
-| 1 | Dummy users (auth accounts) | auth-service / `auth_db` | 30 (1 ADMIN + 29 CONSUMER) |
+| 1 | Demo users (auth accounts) | auth-service / `auth_db` | 30 (1 ADMIN + 29 CONSUMER) |
 | 2 | User profiles | user-service / `user_db` | 30 |
 | 3 | Demo organization + memberships | organization-service / `organization_db` | 1 org, 30 memberships |
 | 4 | Meters (assigned to consumers) | meter-management-service / `meter_management_db` | 30 |
@@ -23,6 +23,25 @@ and no hard-coded secrets**.
 | 6 | Bills | bill-service / `bill_db` | 30 |
 | 7 | Wallet top-ups + bill payments | payment-service / `payment_db` | 30 payments |
 | 8 | Complaints | complaint-service / `complaint_db` | 10 |
+
+The 10 sample complaints use realistic electricity-service subjects (one per
+consumer, in creation order):
+
+| Consumer | Subject |
+|---|---|
+| soumya | Incorrect billing amount |
+| anil | Meter reading mismatch |
+| vinay | Payment not reflected |
+| pavan | Unexpected usage increase |
+| tarun | Meter display issue |
+| bharath | Bill due-date clarification |
+| satya | Wallet balance discrepancy |
+| srivalli | Service interruption report |
+| rekha | Frequent voltage fluctuation |
+| uday | Meter not reporting readings |
+
+All 10 are stored with the realistic subject only — no internal
+`[voltaras-demo]` prefix is added to complaint subjects.
 
 The two pre-existing Docker test accounts are **kept untouched**:
 
@@ -37,7 +56,7 @@ The two pre-existing Docker test accounts are **kept untouched**:
 |---|---|
 | `docker/seed/seed-docker-demo-data.ps1` | Primary seeder — Windows PowerShell |
 | `docker/seed/seed-docker-demo-data.sh` | Optional seeder — bash / Git Bash / WSL |
-| `docs/15_DOCKER_DUMMY_DATA.md` | This document |
+| `docs/15_DOCKER_DEMO_DATA.md` | This document |
 
 Neither script changes `docker-compose.yml`, any service code, or your `.env`.
 
@@ -78,7 +97,8 @@ The script automatically:
 8. Generates 30 bills (admin).
 9. Tops up wallets (only when the balance cannot cover the bill) and pays the
    30 bills using the `Idempotency-Key` header.
-10. Creates 10 dummy complaints.
+10. Creates 10 sample complaints with realistic electricity-service subjects
+    (see “Sample complaint subjects” below).
 11. Verifies: logins, complaint APIs through the gateway, and DB counts.
 
 Optional environment variables (bash) / parameters (PowerShell):
@@ -95,10 +115,10 @@ Optional environment variables (bash) / parameters (PowerShell):
 
 ## 4. Design rules honoured
 
-1. **No real personal data** — clean dummy names, `*.demo@voltaras.local`
-   emails, deterministic dummy phones and Hyderabad/Telangana dummy addresses.
+1. **No real personal data** — clean demo names, `*.demo@voltaras.local`
+   emails, deterministic demo phones and Hyderabad/Telangana demo addresses.
 2. **No hard-coded secrets** — DB credentials are read from the gitignored
-   `.env` (or environment variables). The common dummy password is a demo
+   `.env` (or environment variables). The common demo password is a demo
    constant, documented here on purpose.
 3. **Does not break Docker Compose** — no compose/config/code changes.
 4. **Local/demo only** — never point `GATEWAY_URL` at a real environment.
@@ -111,16 +131,18 @@ Optional environment variables (bash) / parameters (PowerShell):
    - meters/readings/bills: unique keys (`meter_number`, meter+date, and
      consumer+meter+month+year) → 409 on re-run → existing rows reused;
    - payments: replayed safely via the `Idempotency-Key` header;
-   - complaints: subject check before create (fixed 10-consumer subset).
+   - complaints: a consumer who already has a complaint is skipped (fixed
+     10-consumer subset, one realistic subject per consumer).
 6. **API-first** — seeding is done through the API Gateway wherever a route
    exists. Direct SQL is used only for the ADMIN role promotion and for the
    final verification counts.
 7. **Existing test accounts are preserved** — the seeder only touches
-   `*.demo@voltaras.local` users and `[voltaras-demo]` tagged data.
+   `*.demo@voltaras.local` users and `[voltaras-demo]` tagged data
+   (complaint subjects are stored without the tag prefix).
 
 ---
 
-## 5. Dummy credentials
+## 5. Demo credentials
 
 Common password for all demo users: **`Voltaras@123`**
 
