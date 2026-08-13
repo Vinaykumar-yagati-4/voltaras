@@ -1649,7 +1649,7 @@ Page header + month range selector. Two tabbed sections: Revenue Report and Cons
 
 ---
 
-## 22. Dummy Data Examples for Design Validation
+## 22. Sample Data Examples for Design Validation
 
 ### 22.1 Consumers
 
@@ -1809,7 +1809,7 @@ The following UI features are explicitly **out of scope** for Phase 7 (UI Design
 | 19 | Responsive Behaviour for every major screen documented | ✅ |
 | 20 | Role-Based UI Visibility matrix defined | ✅ |
 | 21 | Reusable UI Component Inventory catalogued | ✅ |
-| 22 | Dummy Data Examples provided for design validation | ✅ |
+| 22 | Sample Data Examples provided for design validation | ✅ |
 | 23 | UI Acceptance Criteria listed | ✅ |
 | 24 | Out-of-Scope Items documented | ✅ |
 | 25 | Phase 7 Completion Checklist completed | ✅ |
