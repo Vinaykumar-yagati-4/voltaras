@@ -19,7 +19,7 @@ and no hard-coded secrets**.
 | 2 | User profiles | user-service / `user_db` | 30 |
 | 3 | Demo organization + memberships | organization-service / `organization_db` | 1 org, 30 memberships |
 | 4 | Meters (assigned to consumers) | meter-management-service / `meter_management_db` | 30 |
-| 5 | Meter readings (verified) | meter-reading-service / `meter_db` | 30 |
+| 5 | Meter readings (verified) | meter-reading-service / `meter_db` | 30 monthly + 7 daily per consumer (240) |
 | 6 | Bills | bill-service / `bill_db` | 30 |
 | 7 | Wallet top-ups + bill payments | payment-service / `payment_db` | 30 payments |
 | 8 | Complaints | complaint-service / `complaint_db` | 10 |
@@ -93,7 +93,11 @@ The script automatically:
 4. Creates the 30 user profiles.
 5. Creates the demo organization and approves the 29 consumer memberships.
 6. Creates 30 meters and assigns them to the consumers.
-7. Submits 30 meter readings and verifies them as admin.
+7. Submits 30 monthly meter readings and verifies them as admin, then
+   submits **7 daily readings per consumer** (the last 7 days ending on the
+   backend's current date) and verifies them as admin — this powers the
+   consumer **Daily electricity tracking** screens (`/consumer` and
+   `/consumer/readings`).
 8. Generates 30 bills (admin).
 9. Tops up wallets (only when the balance cannot cover the bill) and pays the
    30 bills using the `Idempotency-Key` header.
@@ -130,6 +134,9 @@ Optional environment variables (bash) / parameters (PowerShell):
      never re-added;
    - meters/readings/bills: unique keys (`meter_number`, meter+date, and
      consumer+meter+month+year) → 409 on re-run → existing rows reused;
+     daily readings skip days that already exist and anchor the chain on
+     the stored meter value, so a re-run on a later day continues from
+     real data instead of duplicating or inventing readings;
    - payments: replayed safely via the `Idempotency-Key` header;
    - complaints: a consumer who already has a complaint is skipped (fixed
      10-consumer subset, one realistic subject per consumer).
@@ -180,7 +187,7 @@ naveen`
 | Organizations (`VOLTARAS_DEMO`) | 1 |
 | Organization memberships | 30 |
 | Meters (`MTR-DEMO-*`) | 30 |
-| Meter readings (verified) | 30 |
+| Meter readings (verified) | 240 (30 monthly + 7 daily per consumer) |
 | Bills | 30 |
 | Payments | 30 |
 | Complaints | 10 |
@@ -230,7 +237,8 @@ payment 8086, complaint 8087, notification 8088, meter-management 8089).
 | `POST /api/auth/register`, `POST /api/auth/login` | user creation / login |
 | `POST /api/users/profile` | user profiles |
 | `POST /api/organizations`, `POST .../join-requests`, `PATCH .../approve` | org + memberships |
-| `POST /api/meter-readings`, `PATCH /api/meter-readings/admin/{id}/verify` | readings + verification |
+| `POST /api/meter-readings`, `PATCH /api/meter-readings/admin/{id}/verify` | monthly + daily readings + verification |
+| `GET /api/meter-readings/me/daily-usage` | backend date lookup for the daily readings window |
 | `POST /api/bills/admin` | bill generation |
 | `POST /api/wallet/top-up`, `POST /api/bills/{billId}/payments` | wallets + payments |
 | `POST /api/complaints`, `GET /api/complaints/categories` | complaints |

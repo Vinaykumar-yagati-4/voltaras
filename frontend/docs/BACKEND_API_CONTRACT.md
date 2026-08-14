@@ -179,9 +179,41 @@ and `idempotencyKey` (internal marker — the UI never renders it).
 | Method | Path | Returns | Notes |
 |---|---|---|---|
 | GET | `/api/meter-readings/me` | `MeterReadingResponse[]` | **plain array** of the consumer's readings; `status` `SUBMITTED|VERIFIED|REJECTED` |
-| POST | `/api/meter-readings` | `MeterReadingResponse` | submit a reading (not part of the Phase 2 portal screens) |
+| POST | `/api/meter-readings` | `MeterReadingResponse` | submit a reading — used by the demo seeder; not exposed as a portal form |
+| GET | `/api/meter-readings/me/daily-usage` | `DailyUsageResponse` | **daily electricity tracking** — today's units, month-to-date units, estimated costs, last 7 days (see rules below) |
+| GET | `/api/meter-readings/me/usage-summary?days=7` | `DailyUsageResponse` | same summary with a configurable look-back window (`days` clamped to 1–31) |
 
 `remarks` may contain internal seed markers — the readings UI never renders them.
+
+#### Daily usage calculation rules (`DailyUsageResponse`)
+
+`DailyUsageResponse` fields: `meterNumber`, `usageDate` (backend's current date),
+`previousReading`, `latestReading`, `previousReadingAt`, `latestReadingAt`,
+`unitsConsumedToday`, `estimatedPerUnitCost`, `estimatedTodayCost`,
+`monthUnitsSoFar`, `estimatedMonthCost`, `hasReadings`, `hasReadingToday`,
+and `dailyUsage[]` (`date`, `units`, `estimatedCost`, `previousReading`,
+`currentReading`, `readingAt`).
+
+- **Source of truth:** the consumer's real recorded readings (`SUBMITTED` +
+  `VERIFIED`; `REJECTED` excluded) for their most recently active meter.
+  Usage is the difference between consecutive recorded meter values.
+- **Today units** = latest recorded value today − latest recorded value before
+  today. When no reading exists for today, `unitsConsumedToday` is `0` and
+  `hasReadingToday` is `false` — the UI shows an explanation, never fake data.
+- **Month units so far** = latest recorded value in the current billing month −
+  the last recorded value before the month start.
+- **Missing days** report `0` units; the next recorded reading carries the gap
+  since the last recorded value (standard cumulative-meter behaviour).
+- **Costs are estimates** derived from the bill-service tariff slabs (₹1.50/
+  ₹2.50/₹4.00/₹6.00 progressive, ₹100 fixed charge, 5% tax):
+  - `estimatedPerUnitCost` = blended rate `energyCharge(monthUnits) / monthUnits`
+    (₹1.50 fallback when no consumption yet);
+  - `estimatedTodayCost` = today units × blended rate;
+  - `estimatedMonthCost` = energy charge + fixed charge + tax for the
+    month-to-date units. The generated bill remains the source of truth.
+- **Limitations:** readings are consumer-submitted (no smart-meter automation);
+  the API does not expose a text-search or date-range parameter on this
+  summary (window is the only parameter, via `usage-summary?days=`).
 
 ### Notifications (notification-service)
 | Method | Path | Returns | Notes |
