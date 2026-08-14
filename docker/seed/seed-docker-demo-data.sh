@@ -10,6 +10,7 @@
 #   * 1 demo organization + memberships (organization-service)
 #   * 30 meters assigned to consumers (meter-management-service)
 #   * 30 verified meter readings (meter-reading-service)
+#   * 7 daily meter readings per consumer incl. today (meter-reading-service)
 #   * 30 bills (bill-service)
 #   * wallet top-ups + bill payments (payment-service)
 #   * complaints (complaint-service)
@@ -393,6 +394,64 @@ for r in d:
     fi
 done
 echo "  readings submitted and verified for all consumers."
+
+# ---------------------------------------------------------------------------
+# 7b. Daily readings (last 7 days incl. today) - daily electricity tracking
+# ---------------------------------------------------------------------------
+title "Step 6b/7: 7 daily readings per consumer (daily usage tracking)"
+
+# Backend "today" - prefer the daily-usage API so seeding matches the service
+# clock; fall back to the host date if the endpoint is not available yet.
+api GET "$GATEWAY_URL/api/meter-readings/me/daily-usage" "" "${USER_TOKENS[0]}"
+USAGE_DATE="$(json_get usageDate <<<"$HTTP_BODY")"
+if [ -z "$USAGE_DATE" ]; then
+    USAGE_DATE="$(python -c 'import datetime; print(datetime.date.today().isoformat())')"
+fi
+
+DAILY_UNITS=(9 11 8 12 10 13 11)
+DAILY_CREATED=0
+for i in "${!NAMES[@]}"; do
+    prev="${READING_CURR[$i]}"
+    # Existing readings for this consumer's meter (date -> integer current).
+    api GET "$GATEWAY_URL/api/meter-readings/me" "" "${USER_TOKENS[$i]}"
+    EXISTING="$(python -c "
+import sys, json
+d = json.loads(sys.stdin.read())
+print(json.dumps({
+    r['readingDate']: int(r['currentReading'])
+    for r in d if r.get('meterNumber') == '${METER_NUMS[$i]}'
+}))
+" <<<"$HTTP_BODY")"
+    for d in 0 1 2 3 4 5 6; do
+        date_d="$(python -c "
+import datetime
+print((datetime.date.fromisoformat('$USAGE_DATE') - datetime.timedelta(days=$((6-d)))).isoformat())
+")"
+        KNOWN="$(python -c "
+import sys, json
+m = json.loads('''$EXISTING''')
+v = m.get('$date_d')
+print(v if v is not None else '')
+")"
+        if [ -n "$KNOWN" ]; then
+            # Already recorded (idempotent re-run) - anchor the chain on the
+            # stored value so later days stay consistent with real data.
+            prev="$KNOWN"
+            continue
+        fi
+        units=$(( DAILY_UNITS[d] + (i % 3) ))
+        curr=$(( prev + units ))
+        body="{\"meterNumber\":\"${METER_NUMS[$i]}\",\"previousReading\":$prev,\"currentReading\":$curr,\"readingDate\":\"$date_d\",\"remarks\":\"$SEED_TAG Seeded demo daily reading\"}"
+        api POST "$GATEWAY_URL/api/meter-readings" "$body" "${USER_TOKENS[$i]}"
+        RID="$(json_get id <<<"$HTTP_BODY")"
+        if [ -n "$RID" ]; then
+            api PATCH "$GATEWAY_URL/api/meter-readings/admin/$RID/verify" "" "$ADMIN_TOKEN"
+            DAILY_CREATED=$((DAILY_CREATED+1))
+        fi
+        prev="$curr"
+    done
+done
+echo "  $DAILY_CREATED new daily readings created (last 7 days incl. today, backend date $USAGE_DATE)."
 
 # ---------------------------------------------------------------------------
 # 8. Bills (admin generates one bill per consumer)
