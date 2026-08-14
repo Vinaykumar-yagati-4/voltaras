@@ -3,6 +3,7 @@ package com.voltaras.meterreadingservice.service;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
+import com.voltaras.meterreadingservice.dto.response.DailyUsageResponse;
 import com.voltaras.meterreadingservice.dto.response.MeterReadingResponse;
 import com.voltaras.meterreadingservice.enums.MeterReadingStatus;
 
@@ -25,6 +26,19 @@ public interface MeterReadingService {
 
     /** Consumer: lists the caller's own readings, newest billing period first. */
     List<MeterReadingResponse> getMyReadings(Long authUserId);
+
+    /**
+     * Consumer: daily usage tracking summary — today's consumption, the
+     * current month's consumption and the last 7 days of daily usage,
+     * calculated from the caller's real recorded readings.
+     */
+    DailyUsageResponse getDailyUsage(Long authUserId);
+
+    /**
+     * Consumer: usage summary with a configurable look-back window
+     * (clamped to 1–31 days), same shape as {@link #getDailyUsage(Long)}.
+     */
+    DailyUsageResponse getUsageSummary(Long authUserId, int days);
 
     /** Consumer: fetches one of the caller's own readings. */
     MeterReadingResponse getMyReadingById(Long authUserId, Long readingId);

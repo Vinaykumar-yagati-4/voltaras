@@ -3,6 +3,7 @@ package com.voltaras.meterreadingservice.controller;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
+import com.voltaras.meterreadingservice.dto.response.DailyUsageResponse;
 import com.voltaras.meterreadingservice.dto.response.ErrorResponse;
 import com.voltaras.meterreadingservice.dto.response.MeterReadingResponse;
 import com.voltaras.meterreadingservice.enums.MeterReadingStatus;
@@ -152,6 +153,108 @@ public class MeterReadingController {
 
         List<MeterReadingResponse> response =
                 meterReadingService.getMyReadings(authUserId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Get my daily usage summary",
+            description = """
+                    Returns the consumer's daily electricity usage tracking
+                    summary calculated by the backend from their real recorded
+                    meter readings: today's consumption, the month-to-date
+                    consumption, estimated costs (using the bill-service tariff
+                    slabs) and the last 7 days of daily usage.
+
+                    Days without a recorded reading report zero units; the
+                    response flags hasReadingToday so the UI can explain the
+                    empty state instead of showing fabricated values.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Daily usage summary retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = DailyUsageResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @GetMapping("/me/daily-usage")
+    public ResponseEntity<DailyUsageResponse> getMyDailyUsage(
+            @RequestHeader("X-User-Id") Long authUserId
+    ) {
+
+        DailyUsageResponse response =
+                meterReadingService.getDailyUsage(authUserId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Get my usage summary for a look-back window",
+            description = """
+                    Same summary as /me/daily-usage but with a configurable
+                    look-back window (1 to 31 days, default 7) for the daily
+                    usage series.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Usage summary retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = DailyUsageResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid days parameter",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @GetMapping("/me/usage-summary")
+    public ResponseEntity<DailyUsageResponse> getMyUsageSummary(
+            @RequestHeader("X-User-Id") Long authUserId,
+            @RequestParam(
+                    name = "days",
+                    defaultValue = "7"
+            ) int days
+    ) {
+
+        DailyUsageResponse response =
+                meterReadingService.getUsageSummary(authUserId, days);
 
         return ResponseEntity.ok(response);
     }
