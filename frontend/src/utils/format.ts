@@ -21,3 +21,35 @@ export function formatDate(value: string | number | Date | null | undefined): st
     year: 'numeric',
   })
 }
+
+/** Indian Rupee formatting, e.g. ₹2,784.75 — the only wallet/bill currency. */
+export function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+/** Billing month label, e.g. "Jul 2026" from month=7, year=2026. */
+export function formatBillingMonth(month: number, year: number): string {
+  const date = new Date(year, month - 1, 1)
+  if (Number.isNaN(date.getTime())) return `${month}/${year}`
+  return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+}
+
+/**
+ * Human-readable complaint category label, e.g. "BILLING_ISSUE" → "Billing issue".
+ * Unknown names fall back to a title-cased, underscore-spaced rendering.
+ */
+export function formatCategoryLabel(name: string | null | undefined): string {
+  if (!name) return '—'
+  return name
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
