@@ -514,12 +514,13 @@ Write-Host ""
 Write-Host "=== Bonus: sample complaints ===" -ForegroundColor Cyan
 
 $complaints = 0
-$categories = $null
 $subjectIndex = 0
 # Fixed subset of 10 consumers (first 10 consumers; the admin is excluded) so
 # the step is strictly idempotent - re-runs never add complaints for new users.
-# One realistic electricity-service subject per consumer, kept in sync with the
-# demo complaint records documented in docs/15_DOCKER_DEMO_DATA.md.
+# One realistic electricity-service subject per consumer with a matching
+# category name (resolved against the live categories API) and a natural
+# consumer-written description, kept in sync with the demo complaint records
+# documented in docs/15_DOCKER_DEMO_DATA.md.
 $complaintSubjects = @(
     "Incorrect billing amount",     # soumya
     "Meter reading mismatch",       # anil
@@ -532,14 +533,38 @@ $complaintSubjects = @(
     "Frequent voltage fluctuation", # rekha
     "Meter not reporting readings"  # uday
 )
+$complaintCategories = @(
+    "BILLING_ISSUE",  # soumya
+    "METER_ISSUE",    # anil
+    "PAYMENT_ISSUE",  # vinay
+    "METER_ISSUE",    # pavan
+    "METER_ISSUE",    # tarun
+    "BILLING_ISSUE",  # bharath
+    "PAYMENT_ISSUE",  # satya
+    "OTHER",          # srivalli
+    "OTHER",          # rekha
+    "METER_ISSUE"     # uday
+)
+$complaintDescriptions = @(
+    "My electricity bill for this billing period is much higher than my actual usage. I have reviewed my previous bills and my consumption has not changed, so the amount seems incorrect. Please review the bill and correct it if there is an error.",
+    "The meter reading used for my latest bill does not match the reading shown on my meter display. My bill shows a higher reading than what I can see on the meter. Please recheck the reading and update my bill accordingly.",
+    "I paid my electricity bill through the wallet a few days ago, but the payment is still not showing on my account. The amount was deducted from my wallet but my bill still shows as unpaid. Please verify the transaction and update my bill status.",
+    "My electricity usage this month is much higher than usual even though my daily habits have not changed. I would like to understand why my consumption increased so much and confirm the reading is accurate.",
+    "The display on my electricity meter is not working properly. The screen is flickering and sometimes shows blank, so I cannot read my current usage. Please arrange an inspection of my meter.",
+    "I received my latest electricity bill later than usual and the due date seems very close. I want to confirm the exact due date so I can make the payment on time and avoid any late fee.",
+    "My wallet balance does not match my records. I believe a recharge I made earlier has not been credited, or a payment was deducted twice. Please check my wallet transactions and correct the balance.",
+    "I have been facing repeated interruptions in my electricity supply over the past few days. The power goes off without any prior notice and returns after some time. Please look into the supply issue in my area.",
+    "I am experiencing frequent voltage fluctuations at my home. The lights flicker and some appliances switch off suddenly. This has been happening for the past week. Please check the supply voltage in my area.",
+    "My electricity meter has not been reporting readings for the last two billing cycles, and my bill is being estimated instead of based on actual usage. Please check the meter connection and resolve this issue."
+)
 $consumersForComplaints = $consumers | Select-Object -First 10
 foreach ($u in $consumersForComplaints) {
     try {
-        if ($null -eq $categories) {
-            $categories = Invoke-Json "GET" "$GatewayUrl/api/complaints/categories" $null $u.token
-        }
-        $categoryId = $categories[0].id
+        $categories = Invoke-Json "GET" "$GatewayUrl/api/complaints/categories" $null $u.token
+        $categoryName = $complaintCategories[$subjectIndex]
+        $categoryId = ($categories | Where-Object { $_.name -eq $categoryName } | Select-Object -First 1).id
         $subject = $complaintSubjects[$subjectIndex]
+        $description = $complaintDescriptions[$subjectIndex]
         $subjectIndex++
 
         $mine = Invoke-Json "GET" "$GatewayUrl/api/complaints" $null $u.token
@@ -547,7 +572,7 @@ foreach ($u in $consumersForComplaints) {
             $complaintBody = @{
                 categoryId  = $categoryId
                 subject     = $subject
-                description = "Sample complaint created for local Docker demonstration by the VOLTARAS demo data seeder. Fictional record - no real data involved."
+                description = $description
             }
             Invoke-Json "POST" "$GatewayUrl/api/complaints" $complaintBody $u.token | Out-Null
             $complaints++

@@ -44,3 +44,16 @@ export class ApiError extends Error {
     this.payload = payload
   }
 }
+
+/** Spring `Page` envelope shared by paginated endpoints. */
+export interface PageResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
+  numberOfElements?: number
+  first?: boolean
+  last?: boolean
+  empty?: boolean
+}
