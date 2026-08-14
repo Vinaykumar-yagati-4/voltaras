@@ -460,12 +460,13 @@ echo "  $PAID / 30 bills paid from demo wallets."
 title "Bonus: sample complaints"
 
 COMPLAINTS=0
-CATEGORY_ID=""
 SUBJECT_K=0
 # Fixed subset of 10 consumers (indices 0-8 plus 10; index 9 is the admin) so
 # the step is strictly idempotent - re-runs never add complaints for new users.
-# One realistic electricity-service subject per consumer, kept in sync with the
-# demo complaint records documented in docs/15_DOCKER_DEMO_DATA.md.
+# One realistic electricity-service subject per consumer with a matching
+# category name (resolved against the live categories API) and a natural
+# consumer-written description, kept in sync with the demo complaint records
+# documented in docs/15_DOCKER_DEMO_DATA.md.
 COMPLAINT_SUBJECTS=(
   "Incorrect billing amount"      # soumya
   "Meter reading mismatch"        # anil
@@ -478,17 +479,46 @@ COMPLAINT_SUBJECTS=(
   "Frequent voltage fluctuation"  # rekha
   "Meter not reporting readings"  # uday
 )
+COMPLAINT_CATEGORIES=(
+  "BILLING_ISSUE"  # soumya
+  "METER_ISSUE"    # anil
+  "PAYMENT_ISSUE"  # vinay
+  "METER_ISSUE"    # pavan
+  "METER_ISSUE"    # tarun
+  "BILLING_ISSUE"  # bharath
+  "PAYMENT_ISSUE"  # satya
+  "OTHER"          # srivalli
+  "OTHER"          # rekha
+  "METER_ISSUE"    # uday
+)
+COMPLAINT_DESCRIPTIONS=(
+  "My electricity bill for this billing period is much higher than my actual usage. I have reviewed my previous bills and my consumption has not changed, so the amount seems incorrect. Please review the bill and correct it if there is an error."
+  "The meter reading used for my latest bill does not match the reading shown on my meter display. My bill shows a higher reading than what I can see on the meter. Please recheck the reading and update my bill accordingly."
+  "I paid my electricity bill through the wallet a few days ago, but the payment is still not showing on my account. The amount was deducted from my wallet but my bill still shows as unpaid. Please verify the transaction and update my bill status."
+  "My electricity usage this month is much higher than usual even though my daily habits have not changed. I would like to understand why my consumption increased so much and confirm the reading is accurate."
+  "The display on my electricity meter is not working properly. The screen is flickering and sometimes shows blank, so I cannot read my current usage. Please arrange an inspection of my meter."
+  "I received my latest electricity bill later than usual and the due date seems very close. I want to confirm the exact due date so I can make the payment on time and avoid any late fee."
+  "My wallet balance does not match my records. I believe a recharge I made earlier has not been credited, or a payment was deducted twice. Please check my wallet transactions and correct the balance."
+  "I have been facing repeated interruptions in my electricity supply over the past few days. The power goes off without any prior notice and returns after some time. Please look into the supply issue in my area."
+  "I am experiencing frequent voltage fluctuations at my home. The lights flicker and some appliances switch off suddenly. This has been happening for the past week. Please check the supply voltage in my area."
+  "My electricity meter has not been reporting readings for the last two billing cycles, and my bill is being estimated instead of based on actual usage. Please check the meter connection and resolve this issue."
+)
 for i in 0 1 2 3 4 5 6 7 8 10; do
-    if [ -z "$CATEGORY_ID" ]; then
-        api GET "$GATEWAY_URL/api/complaints/categories" "" "${USER_TOKENS[$i]}"
-        CATEGORY_ID="$(python -c "
+    # Resolve the category id for this complaint from the live categories API.
+    api GET "$GATEWAY_URL/api/complaints/categories" "" "${USER_TOKENS[$i]}"
+    CATEGORY_ID="$(python -c "
 import sys, json
+name = sys.argv[1]
 d = json.loads(sys.stdin.read())
-print(d[0]['id'] if isinstance(d, list) and d else '')
-" <<<"$HTTP_BODY")"
-    fi
+items = d if isinstance(d, list) else []
+for c in items:
+    if c.get('name') == name:
+        print(c['id'])
+        break
+" "${COMPLAINT_CATEGORIES[$SUBJECT_K]}" <<<"$HTTP_BODY")"
 
     subject="${COMPLAINT_SUBJECTS[$SUBJECT_K]}"
+    description="${COMPLAINT_DESCRIPTIONS[$SUBJECT_K]}"
     SUBJECT_K=$((SUBJECT_K+1))
     api GET "$GATEWAY_URL/api/complaints" "" "${USER_TOKENS[$i]}"
     ALREADY="$(python -c "
@@ -498,7 +528,7 @@ items = d.get('content', d) if isinstance(d, dict) else d
 print(1 if items else 0)
 " <<<"$HTTP_BODY")"
     if [ "$ALREADY" != "1" ]; then
-        body="{\"categoryId\":$CATEGORY_ID,\"subject\":\"$subject\",\"description\":\"Sample complaint created for local Docker demonstration by the VOLTARAS demo data seeder. Fictional record - no real data involved.\"}"
+        body="{\"categoryId\":$CATEGORY_ID,\"subject\":\"$subject\",\"description\":\"$description\"}"
         api POST "$GATEWAY_URL/api/complaints" "$body" "${USER_TOKENS[$i]}"
         if [ "$HTTP_CODE" = "201" ]; then COMPLAINTS=$((COMPLAINTS+1)); fi
     fi
