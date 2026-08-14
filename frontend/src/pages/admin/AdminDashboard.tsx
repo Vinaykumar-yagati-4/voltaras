@@ -1,309 +1,336 @@
-import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
+  Activity,
+  ArrowRight,
+  Bell,
+  Building2,
   CheckCheck,
   CheckCircle2,
+  ChevronRight,
   Clock3,
-  Loader2,
   MessageSquareWarning,
-  Search,
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { Badge, priorityTone, statusTone } from '@/components/ui/Badge'
-import { Card, CardBody, CardHeader } from '@/components/ui/Card'
+import { Card, CardBody } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
-import { LoadingState } from '@/components/ui/LoadingState'
 import { useAuth } from '@/hooks/useAuth'
 import {
   getAdminComplaints,
   getComplaintStatusCounts,
   type ComplaintStatus,
-  type ComplaintSummary,
 } from '@/services/complaints'
-import { formatCategoryLabel, formatDateTime } from '@/utils/format'
+import { getUnreadCount } from '@/services/notifications'
+import { getAdminOrganizations } from '@/services/organizations'
+import { formatCategoryLabel, formatDateTime, formatEnumLabel } from '@/utils/format'
 import { cn } from '@/utils/cn'
 
 const STATUS_META: {
   status: ComplaintStatus
   icon: LucideIcon
   iconClass: string
+  label: string
   description: string
 }[] = [
   {
     status: 'OPEN',
     icon: Clock3,
-    iconClass: 'bg-amber-50 text-amber-600',
+    iconClass: 'bg-amber-50 text-amber-600 ring-amber-100',
+    label: 'Open',
     description: 'Awaiting response',
   },
   {
     status: 'IN_PROGRESS',
-    icon: Loader2,
-    iconClass: 'bg-volt-50 text-volt-600',
+    icon: Activity,
+    iconClass: 'bg-volt-50 text-volt-600 ring-volt-100',
+    label: 'In progress',
     description: 'Being worked on',
   },
   {
     status: 'RESOLVED',
     icon: CheckCircle2,
-    iconClass: 'bg-emerald-50 text-emerald-600',
-    description: 'Resolved',
+    iconClass: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
+    label: 'Resolved',
+    description: 'Completed',
   },
   {
     status: 'CLOSED',
     icon: CheckCheck,
-    iconClass: 'bg-slate-100 text-slate-600',
+    iconClass: 'bg-slate-100 text-slate-600 ring-slate-200',
+    label: 'Closed',
     description: 'Closed cases',
   },
 ]
 
-const STATUS_FILTERS: Array<ComplaintStatus | 'ALL'> = [
-  'ALL',
-  'OPEN',
-  'IN_PROGRESS',
-  'RESOLVED',
-  'CLOSED',
-]
-
-function StatusCard({
+function MetricCard({
   icon: Icon,
   label,
   value,
   hint,
   iconClass,
+  to,
 }: {
   icon: LucideIcon
   label: string
   value: string | number
   hint: string
   iconClass: string
+  to?: string
 }) {
-  return (
-    <Card>
-      <CardBody className="flex items-center gap-3">
+  const content = (
+    <Card
+      className={cn(
+        'h-full transition-all duration-200 motion-reduce:transition-none',
+        to && 'hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg motion-reduce:hover:translate-y-0',
+      )}
+    >
+      <CardBody className="flex items-start gap-4">
         <div
-          className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-md', iconClass)}
+          className={cn(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-card ring-1 ring-inset',
+            iconClass,
+          )}
         >
-          <Icon className="h-5 w-5" aria-hidden="true" />
+          <Icon className="h-6 w-6" aria-hidden="true" />
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">
-            {label}
-          </p>
-          <p className="mt-0.5 text-2xl font-bold text-navy-900">{value}</p>
-          <p className="truncate text-xs text-slate-500">{hint}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-navy-900">{value}</p>
+          <p className="mt-0.5 truncate text-xs text-slate-500">{hint}</p>
         </div>
       </CardBody>
     </Card>
   )
+  return to ? (
+    <Link
+      to={to}
+      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-500"
+    >
+      {content}
+    </Link>
+  ) : (
+    content
+  )
 }
-
-const GRID_COLS = 'lg:grid-cols-[10rem_minmax(0,1fr)_9rem_auto_auto]'
 
 export function AdminDashboard() {
   const { user } = useAuth()
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'ALL'>('ALL')
-
-  const complaintsQuery = useQuery({
-    queryKey: ['admin-complaints', 'dashboard'],
-    queryFn: () => getAdminComplaints(0, 100),
-    enabled: user?.role === 'ADMIN',
-  })
 
   const countsQuery = useQuery({
     queryKey: ['complaint-status-counts'],
-    queryFn: () => getComplaintStatusCounts(),
+    queryFn: getComplaintStatusCounts,
     enabled: user?.role === 'ADMIN',
   })
 
-  const allComplaints = useMemo(
-    () => complaintsQuery.data?.content ?? [],
-    [complaintsQuery.data],
-  )
-  const counts = countsQuery.data ?? ({} as Record<ComplaintStatus, number>)
-  const total = complaintsQuery.data?.totalElements ?? 0
+  const recentQuery = useQuery({
+    queryKey: ['admin-complaints', { page: 0, size: 5 }],
+    queryFn: () => getAdminComplaints(0, 5),
+    enabled: user?.role === 'ADMIN',
+  })
 
-  // Client-side search/filter — operates only on the already-fetched list.
-  const filteredComplaints = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return allComplaints.filter((complaint) => {
-      const matchesStatus = statusFilter === 'ALL' || complaint.status === statusFilter
-      const matchesSearch =
-        query === '' ||
-        complaint.subject.toLowerCase().includes(query) ||
-        complaint.ticketNumber.toLowerCase().includes(query) ||
-        (complaint.categoryName ?? '').toLowerCase().includes(query) ||
-        formatCategoryLabel(complaint.categoryName).toLowerCase().includes(query)
-      return matchesStatus && matchesSearch
-    })
-  }, [allComplaints, search, statusFilter])
+  const orgsQuery = useQuery({
+    queryKey: ['admin-organizations', { page: 0, size: 1 }],
+    queryFn: () => getAdminOrganizations(0, 1),
+    enabled: user?.role === 'ADMIN',
+  })
+
+  const unreadQuery = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: getUnreadCount,
+    enabled: user?.role === 'ADMIN',
+  })
+
+  const counts = countsQuery.data ?? ({} as Record<ComplaintStatus, number>)
+  const totalComplaints = Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0)
+  const recentComplaints = recentQuery.data?.content ?? []
+  const organizationTotal = orgsQuery.data?.totalElements ?? 0
+  const unreadCount = unreadQuery.data?.unreadCount ?? 0
+  const firstName = user?.fullName?.split(' ')[0]
+
+  const summarySentence = countsQuery.isLoading
+    ? 'Loading live operational totals…'
+    : `${totalComplaints} complaint${totalComplaints === 1 ? '' : 's'} tracked across ${organizationTotal} organization${organizationTotal === 1 ? '' : 's'} · ${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}`
 
   return (
     <div className="space-y-6">
-      {/* Overview header */}
-      <section className="flex flex-col gap-4 rounded-card border border-slate-200 bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-bold text-navy-900 sm:text-xl">
-            Complaints overview
-          </h1>
-          <p className="mt-0.5 truncate text-sm text-slate-500">
-            {user?.fullName} ·{' '}
-            {total > 0 ? `${total} ${total === 1 ? 'complaint' : 'complaints'} across your service area` : 'No complaints to review'}
-          </p>
+      {/* Operations hero */}
+      <section className="relative overflow-hidden rounded-card bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 p-6 text-white shadow-card sm:p-8">
+        {/* Subtle CSS-only grid / power motif */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)',
+            backgroundSize: '26px 26px',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-volt-500/25 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-24 right-24 h-40 w-40 rounded-full bg-volt-400/10 blur-3xl"
+        />
+
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest text-volt-200 ring-1 ring-inset ring-white/10">
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Operations overview
+              </span>
+              <Badge tone="blue" className="bg-volt-500/20 text-volt-100 ring-volt-400/30">
+                ADMIN
+              </Badge>
+            </div>
+            <h1 className="mt-3 break-words text-2xl font-bold tracking-tight sm:text-3xl">
+              {firstName ? `Good to see you, ${firstName}` : 'Operations overview'}
+            </h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-300">{summarySentence}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link
+              to="/admin/complaints"
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-navy-900 shadow-sm transition-colors hover:bg-slate-100"
+            >
+              Review complaints
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link
+              to="/admin/organizations"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-white/25 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Manage organizations
+            </Link>
+          </div>
         </div>
-        <Badge tone="blue" className="shrink-0 self-start gap-1.5 px-3 py-1 text-sm sm:self-auto">
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          ADMIN
-        </Badge>
       </section>
 
-      {/* Status metrics */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Complaint status totals">
-        {STATUS_META.map(({ status, icon, iconClass, description }) => (
-          <StatusCard
+      {/* Real account metrics */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Overview totals">
+        <MetricCard
+          icon={MessageSquareWarning}
+          label="Total complaints"
+          value={countsQuery.isLoading ? '…' : totalComplaints}
+          hint="All tickets across statuses"
+          iconClass="bg-navy-50 text-navy-600 ring-navy-100"
+          to="/admin/complaints"
+        />
+        <MetricCard
+          icon={Building2}
+          label="Organizations"
+          value={orgsQuery.isLoading ? '…' : organizationTotal}
+          hint="Active and suspended"
+          iconClass="bg-volt-50 text-volt-600 ring-volt-100"
+          to="/admin/organizations"
+        />
+        <MetricCard
+          icon={Bell}
+          label="Unread alerts"
+          value={unreadQuery.isLoading ? '…' : unreadCount}
+          hint="Notifications for you"
+          iconClass="bg-emerald-50 text-emerald-600 ring-emerald-100"
+          to="/admin/notifications"
+        />
+      </section>
+
+      {/* Status totals */}
+      <section
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Complaint status totals"
+      >
+        {STATUS_META.map(({ status, icon, iconClass, label, description }) => (
+          <MetricCard
             key={status}
             icon={icon}
-            label={status.replace('_', ' ')}
+            label={label}
             value={countsQuery.isLoading ? '…' : (counts[status] ?? 0)}
             hint={description}
             iconClass={iconClass}
+            to="/admin/complaints"
           />
         ))}
       </section>
 
-      {/* Complaints list */}
+      {/* Latest complaints */}
       <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-navy-900">All complaints</h2>
-            <p className="text-xs text-slate-500">
-              {filteredComplaints.length} of {total} shown
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-navy-900">Latest complaints</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              The most recently raised tickets, ready for review.
             </p>
           </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full lg:max-w-xs">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search subject or ticket"
-                aria-label="Search complaints by subject or ticket number"
-                className="h-11 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-navy-900 shadow-sm placeholder:text-slate-400 focus:border-volt-500 focus:outline-none focus:ring-2 focus:ring-volt-500/30"
-              />
-            </div>
-            <div
-              className="flex flex-wrap items-center gap-2"
-              role="group"
-              aria-label="Filter complaints by status"
-            >
-              {STATUS_FILTERS.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setStatusFilter(status)}
-                  aria-pressed={statusFilter === status}
-                  className={cn(
-                    'inline-flex h-11 items-center rounded-md border px-3 text-sm font-medium transition-colors',
-                    statusFilter === status
-                      ? 'border-volt-600 bg-volt-600 text-white'
-                      : 'border-slate-300 bg-white text-navy-700 hover:bg-slate-50',
-                  )}
-                >
-                  {status === 'ALL' ? 'All' : status.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-          </div>
-        </CardHeader>
-
-        {complaintsQuery.isLoading ? (
-          <CardBody>
-            <LoadingState label="Loading complaints…" />
-          </CardBody>
-        ) : complaintsQuery.isError ? (
-          <CardBody>
+          <Link
+            to="/admin/complaints"
+            className="inline-flex h-11 items-center gap-1.5 text-sm font-medium text-volt-600 transition-colors hover:text-volt-700"
+          >
+            View all
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <CardBody className="p-0">
+          {recentQuery.isLoading ? (
+            <p className="px-5 py-8 text-sm text-slate-500">Loading complaints…</p>
+          ) : recentQuery.isError ? (
             <ErrorState
               title="Could not load complaints"
-              message={complaintsQuery.error?.message}
-              onRetry={() => complaintsQuery.refetch()}
+              message={recentQuery.error?.message}
+              onRetry={() => recentQuery.refetch()}
             />
-          </CardBody>
-        ) : filteredComplaints.length === 0 ? (
-          <CardBody className="p-0">
+          ) : recentComplaints.length === 0 ? (
             <EmptyState
               icon={MessageSquareWarning}
-              title={allComplaints.length === 0 ? 'No complaints' : 'No matching complaints'}
-              description={
-                allComplaints.length === 0
-                  ? 'Complaints raised by consumers will appear here.'
-                  : 'Try adjusting the search or status filter.'
-              }
+              title="No complaints"
+              description="Complaints raised by consumers will appear here."
             />
-          </CardBody>
-        ) : (
-          <CardBody className="p-0">
-            {/* Column labels (desktop only) */}
-            <div
-              className={cn(
-                'hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 lg:grid lg:gap-4',
-                GRID_COLS,
-              )}
-            >
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Ticket
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Subject
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Raised
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Priority
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Status
-              </span>
-            </div>
+          ) : (
             <ul className="divide-y divide-slate-100">
-              {filteredComplaints.map((complaint: ComplaintSummary) => (
-                <li
-                  key={complaint.id}
-                  className={cn(
-                    'flex flex-col gap-2 px-5 py-4 lg:grid lg:items-center lg:gap-4',
-                    GRID_COLS,
-                  )}
-                >
-                  <span className="break-all font-mono text-xs font-medium text-slate-500">
-                    {complaint.ticketNumber}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-medium text-navy-900">
-                      {complaint.subject}
-                    </p>
-                    {complaint.categoryName && (
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {formatCategoryLabel(complaint.categoryName)}
+              {recentComplaints.map((complaint) => (
+                <li key={complaint.id}>
+                  <Link
+                    to={`/admin/complaints/${complaint.id}`}
+                    className="group flex min-h-14 items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 focus-visible:bg-slate-50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold text-navy-900 transition-colors group-hover:text-volt-700">
+                        {complaint.subject}
                       </p>
-                    )}
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {formatDateTime(complaint.createdAt)}
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2 lg:contents">
-                    <Badge tone={priorityTone(complaint.priority)}>{complaint.priority}</Badge>
-                    <Badge tone={statusTone(complaint.status)}>{complaint.status}</Badge>
-                  </div>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                        <span className="font-mono">{complaint.ticketNumber}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{formatDateTime(complaint.createdAt)}</span>
+                        {complaint.categoryName && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>{formatCategoryLabel(complaint.categoryName)}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge tone={priorityTone(complaint.priority)}>
+                        {formatEnumLabel(complaint.priority)}
+                      </Badge>
+                      <Badge tone={statusTone(complaint.status)}>
+                        {formatEnumLabel(complaint.status)}
+                      </Badge>
+                      <ChevronRight
+                        className="h-5 w-5 text-slate-300 transition-transform motion-reduce:transition-none group-hover:translate-x-0.5 group-hover:text-volt-500"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
-          </CardBody>
-        )}
+          )}
+        </CardBody>
       </Card>
     </div>
   )

@@ -54,6 +54,31 @@ const NotificationsPage = lazy(() =>
   import('@/pages/consumer/NotificationsPage').then((m) => ({ default: m.NotificationsPage })),
 )
 
+// Admin portal pages are code-split so the auth/landing bundle stays lean.
+const AdminComplaintsPage = lazy(() =>
+  import('@/pages/admin/AdminComplaintsPage').then((m) => ({ default: m.AdminComplaintsPage })),
+)
+const AdminComplaintDetailPage = lazy(() =>
+  import('@/pages/admin/AdminComplaintDetailPage').then((m) => ({
+    default: m.AdminComplaintDetailPage,
+  })),
+)
+const AdminOrganizationsPage = lazy(() =>
+  import('@/pages/admin/AdminOrganizationsPage').then((m) => ({
+    default: m.AdminOrganizationsPage,
+  })),
+)
+const AdminOrganizationDetailPage = lazy(() =>
+  import('@/pages/admin/AdminOrganizationDetailPage').then((m) => ({
+    default: m.AdminOrganizationDetailPage,
+  })),
+)
+const AdminNotificationsPage = lazy(() =>
+  import('@/pages/admin/AdminNotificationsPage').then((m) => ({
+    default: m.AdminNotificationsPage,
+  })),
+)
+
 const consumerFallback = (
   <div className="py-10">
     <LoadingState label="Loading…" />
@@ -191,7 +216,49 @@ export const router = createBrowserRouter([
         </RoleGuard>
       </ProtectedRoute>
     ),
-    children: [{ index: true, element: <AdminDashboard /> }],
+    children: [
+      { index: true, element: <AdminDashboard /> },
+      {
+        path: 'complaints',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <AdminComplaintsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'complaints/:complaintId',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <AdminComplaintDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'organizations',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <AdminOrganizationsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'organizations/:organizationId',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <AdminOrganizationDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'notifications',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <AdminNotificationsPage />
+          </Suspense>
+        ),
+      },
+    ],
   },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
   { path: '*', element: <NotFoundPage /> },

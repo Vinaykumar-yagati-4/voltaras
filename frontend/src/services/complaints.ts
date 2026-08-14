@@ -7,11 +7,13 @@ export type ComplaintPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
 export interface ComplaintSummary {
   id: number
   ticketNumber: string
+  consumerId?: number
   categoryId?: number
   categoryName?: string
   subject: string
   status: ComplaintStatus
   priority: ComplaintPriority
+  assignedTo?: number | null
   createdAt: string
   updatedAt?: string
   [key: string]: unknown
@@ -107,13 +109,56 @@ export async function updateComplaint(
   return data
 }
 
+export interface AdminComplaintFilters {
+  status?: ComplaintStatus
+  priority?: ComplaintPriority
+  categoryId?: number
+}
+
 export async function getAdminComplaints(
   page = 0,
-  size = 5,
+  size = 10,
+  filters?: AdminComplaintFilters,
 ): Promise<PageResponse<ComplaintSummary>> {
   const { data } = await api.get<PageResponse<ComplaintSummary>>('/api/admin/complaints', {
-    params: { page, size },
+    params: { page, size, ...filters },
   })
+  return data
+}
+
+export async function getAdminComplaintDetail(complaintId: number): Promise<ComplaintDetail> {
+  const { data } = await api.get<ComplaintDetail>(`/api/admin/complaints/${complaintId}`)
+  return data
+}
+
+/** Move a complaint along the lifecycle (OPEN → IN_PROGRESS → RESOLVED → CLOSED). */
+export async function updateComplaintStatus(
+  complaintId: number,
+  status: ComplaintStatus,
+): Promise<{ complaintId: number; ticketNumber: string; previousStatus: ComplaintStatus; currentStatus: ComplaintStatus }> {
+  const { data } = await api.patch(`/api/admin/complaints/${complaintId}/status`, { status })
+  return data
+}
+
+/** Assign a complaint to an admin (only while OPEN or IN_PROGRESS). */
+export async function assignComplaint(
+  complaintId: number,
+  assignedTo: number,
+): Promise<ComplaintDetail> {
+  const { data } = await api.put<ComplaintDetail>(`/api/admin/complaints/${complaintId}/assign`, {
+    assignedTo,
+  })
+  return data
+}
+
+export async function addAdminComplaintComment(
+  complaintId: number,
+  commentText: string,
+): Promise<ComplaintComment> {
+  const { data } = await api.post<ComplaintComment>(
+    `/api/admin/complaints/${complaintId}/comments`,
+    { commentText },
+  )
   return data
 }
 
