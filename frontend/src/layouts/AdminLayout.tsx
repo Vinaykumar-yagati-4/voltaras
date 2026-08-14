@@ -2,12 +2,14 @@ import { Outlet } from 'react-router-dom'
 import {
   Bell,
   Building2,
+  Home,
   LayoutDashboard,
   MessageSquareWarning,
 } from 'lucide-react'
 import { AppShell, type AppNavItem } from '@/layouts/AppShell'
 
 const navItems: AppNavItem[] = [
+  { to: '/', label: 'Home', icon: Home },
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
   { to: '/admin/complaints', label: 'Complaints', icon: MessageSquareWarning, section: 'Operations' },
   { to: '/admin/organizations', label: 'Organizations', icon: Building2, section: 'Operations' },

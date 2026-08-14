@@ -3,6 +3,7 @@ import {
   Bell,
   CreditCard,
   Gauge,
+  Home,
   LayoutDashboard,
   MessageSquareWarning,
   ReceiptText,
@@ -12,6 +13,7 @@ import {
 import { AppShell, type AppNavItem } from '@/layouts/AppShell'
 
 const navItems: AppNavItem[] = [
+  { to: '/', label: 'Home', icon: Home },
   { to: '/consumer', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/consumer/profile', label: 'My profile', icon: UserRound },
   { to: '/consumer/bills', label: 'Bills', icon: ReceiptText },

@@ -12,10 +12,12 @@ const navLinks = [
 
 export function PublicLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
 
   const primaryCta = isAuthenticated
-    ? { to: '/consumer', label: 'Open dashboard' }
+    ? user?.role === 'ADMIN'
+      ? { to: '/admin', label: 'Open dashboard' }
+      : { to: '/consumer', label: 'Open dashboard' }
     : { to: '/login', label: 'Sign in' }
 
   return (
