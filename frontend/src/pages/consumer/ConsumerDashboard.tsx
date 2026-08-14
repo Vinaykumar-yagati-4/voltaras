@@ -9,6 +9,7 @@ import {
   MessageSquareWarning,
   ReceiptText,
   Wallet as WalletIcon,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { Badge, statusTone } from '@/components/ui/Badge'
@@ -20,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getMyBills, billPeriodLabel } from '@/services/bills'
 import { getMyComplaints, type ComplaintStatus, type ComplaintSummary } from '@/services/complaints'
 import { getUnreadCount } from '@/services/notifications'
+import { getDailyUsage } from '@/services/readings'
 import { getMyWallet } from '@/services/wallet'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 import { cn } from '@/utils/cn'
@@ -66,6 +68,15 @@ function StatCard({
   )
 }
 
+function UsageStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-slate-50 px-4 py-3">
+      <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-lg font-bold text-navy-900">{value}</p>
+    </div>
+  )
+}
+
 function countByStatus(items: ComplaintSummary[], statuses: ComplaintStatus[]): number {
   return items.filter((c) => statuses.includes(c.status)).length
 }
@@ -96,6 +107,14 @@ export function ConsumerDashboard() {
     queryFn: getUnreadCount,
     enabled: user?.role === 'CONSUMER',
   })
+
+  const dailyUsageQuery = useQuery({
+    queryKey: ['daily-usage'],
+    queryFn: getDailyUsage,
+    enabled: user?.role === 'CONSUMER',
+  })
+
+  const usage = dailyUsageQuery.data
 
   const allComplaints = complaintsQuery.data?.content ?? []
   const recentComplaints = allComplaints.slice(0, 5)
@@ -142,6 +161,79 @@ export function ConsumerDashboard() {
             CONSUMER
           </Badge>
         </div>
+      </section>
+
+      {/* Today's electricity usage (backend-calculated from real readings) */}
+      <section aria-label="Today's electricity usage">
+        <Card>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-md bg-volt-50 text-volt-600">
+                <Zap className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-navy-900">Today's electricity usage</h2>
+                {usage?.meterNumber && (
+                  <p className="font-mono text-xs text-slate-500">{usage.meterNumber}</p>
+                )}
+              </div>
+            </div>
+            <Link
+              to="/consumer/readings"
+              className="inline-flex h-11 items-center text-sm font-medium text-volt-600 hover:text-volt-700"
+            >
+              View 7-day usage
+            </Link>
+          </CardHeader>
+          <CardBody>
+            {dailyUsageQuery.isLoading ? (
+              <LoadingState label="Loading your daily usage…" />
+            ) : dailyUsageQuery.isError ? (
+              <ErrorState
+                title="Could not load daily usage"
+                message={dailyUsageQuery.error?.message}
+                onRetry={() => dailyUsageQuery.refetch()}
+              />
+            ) : !usage?.hasReadings ? (
+              <EmptyState
+                icon={Zap}
+                title="No meter readings recorded yet"
+                description="Submit your first daily meter reading and your daily usage will appear here."
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                  <UsageStat label="Today's units" value={`${usage.unitsConsumedToday} units`} />
+                  <UsageStat
+                    label="Today's estimated cost"
+                    value={formatCurrency(usage.estimatedTodayCost)}
+                  />
+                  <UsageStat
+                    label="Per unit (est.)"
+                    value={`${formatCurrency(usage.estimatedPerUnitCost)}/unit`}
+                  />
+                  <UsageStat label="This month" value={`${usage.monthUnitsSoFar} units`} />
+                  <UsageStat
+                    label="Month estimate"
+                    value={formatCurrency(usage.estimatedMonthCost)}
+                  />
+                </div>
+                <div className="mt-4 space-y-1 border-t border-slate-100 pt-3">
+                  {!usage.hasReadingToday && (
+                    <p className="text-sm font-medium text-amber-600">
+                      No reading recorded today yet — today's units will update after you submit
+                      today's reading.
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Last reading recorded {formatDateTime(usage.latestReadingAt)}. Costs are
+                    estimates based on the current tariff slabs; your bill is the source of truth.
+                  </p>
+                </div>
+              </>
+            )}
+          </CardBody>
+        </Card>
       </section>
 
       {/* Real account metrics */}

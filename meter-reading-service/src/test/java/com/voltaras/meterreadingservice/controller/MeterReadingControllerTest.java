@@ -91,8 +91,6 @@ class MeterReadingControllerTest {
                         .content("""
                                 {
                                   "meterNumber": "",
-                                  "billingMonth": 13,
-                                  "billingYear": 1999,
                                   "previousReading": -5,
                                   "currentReading": 10,
                                   "readingDate": "2099-01-01"
@@ -101,12 +99,15 @@ class MeterReadingControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.details[?(@.field == 'billingMonth')].message")
+                .andExpect(jsonPath("$.error.details[?(@.field == 'meterNumber')].message")
                         .value(org.hamcrest.Matchers.hasItem(
-                                "Billing month must be between 1 and 12")))
-                .andExpect(jsonPath("$.error.details[?(@.field == 'billingYear')].message")
+                                "Meter number is required")))
+                .andExpect(jsonPath("$.error.details[?(@.field == 'previousReading')].message")
                         .value(org.hamcrest.Matchers.hasItem(
-                                "Billing year must be 2000 or later")));
+                                "Previous reading must be zero or positive")))
+                .andExpect(jsonPath("$.error.details[?(@.field == 'readingDate')].message")
+                        .value(org.hamcrest.Matchers.hasItem(
+                                "Reading date cannot be in the future")));
     }
 
     @Test

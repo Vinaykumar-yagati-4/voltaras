@@ -10,6 +10,7 @@
       * 1 demo organization + memberships (organization-service)
       * 30 meters assigned to consumers (meter-management-service)
       * 30 verified meter readings (meter-reading-service)
+      * 7 daily meter readings per consumer incl. today (meter-reading-service)
       * 30 bills (bill-service)
       * wallet top-ups + bill payments (payment-service)
       * complaints (complaint-service)
@@ -433,6 +434,72 @@ for ($i = 0; $i -lt $Users.Count; $i++) {
     }
 }
 Write-Host "  readings submitted and verified for all consumers."
+
+# ---------------------------------------------------------------------------
+# 7b. Daily readings (last 7 days incl. today) - daily electricity tracking
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "=== Step 6b/7: 7 daily readings per consumer (daily usage tracking) ===" -ForegroundColor Cyan
+
+# Backend "today" - prefer the daily-usage API so seeding matches the service
+# clock; fall back to the host date if the endpoint is not available yet.
+$usageDate = $null
+try {
+    $usage = Invoke-Json "GET" "$GatewayUrl/api/meter-readings/me/daily-usage" $null $Users[0].token
+    $usageDate = $usage.usageDate
+} catch { }
+if ([string]::IsNullOrWhiteSpace($usageDate)) {
+    $usageDate = (Get-Date).ToString("yyyy-MM-dd")
+}
+
+$dailyUnits = @(9, 11, 8, 12, 10, 13, 11)
+$dailyCreated = 0
+for ($i = 0; $i -lt $Users.Count; $i++) {
+    $u       = $Users[$i]
+    $meter   = $meters | Where-Object { $_.userId -eq $u.userId } | Select-Object -First 1
+    $monthly = $readings | Where-Object { $_.userId -eq $u.userId } | Select-Object -First 1
+    $prev    = [double]$monthly.currentReading
+
+    # Existing readings for this consumer's meter (date -> current reading).
+    $existing = @{}
+    try {
+        $mine = Invoke-Json "GET" "$GatewayUrl/api/meter-readings/me" $null $u.token
+        foreach ($r in $mine) {
+            if ($r.meterNumber -eq $meter.meterNumber) {
+                $existing[$r.readingDate] = [double]$r.currentReading
+            }
+        }
+    } catch { }
+
+    for ($d = 0; $d -lt 7; $d++) {
+        $dateD = ([datetime]::ParseExact($usageDate, "yyyy-MM-dd", $null)).AddDays($d - 6).ToString("yyyy-MM-dd")
+        if ($existing.ContainsKey($dateD)) {
+            # Already recorded (idempotent re-run) - anchor the chain on the
+            # stored value so later days stay consistent with real data.
+            $prev = $existing[$dateD]
+            continue
+        }
+        $units = $dailyUnits[$d] + ($i % 3)
+        $curr  = $prev + $units
+        $readingBody = @{
+            meterNumber     = $meter.meterNumber
+            previousReading = $prev
+            currentReading  = $curr
+            readingDate     = $dateD
+            remarks         = "$SeedTag Seeded demo daily reading"
+        }
+        try {
+            $created = Invoke-Json "POST" "$GatewayUrl/api/meter-readings" $readingBody $u.token
+            $rid = $created.id
+            if ($rid) {
+                try { Invoke-Json "PATCH" "$GatewayUrl/api/meter-readings/admin/$rid/verify" $null $Admin.token | Out-Null } catch { }
+                $dailyCreated++
+            }
+        } catch { }
+        $prev = $curr
+    }
+}
+Write-Host "  $dailyCreated new daily readings created (last 7 days incl. today, backend date $usageDate)."
 
 # ---------------------------------------------------------------------------
 # 8. Bills (admin generates one bill per consumer)

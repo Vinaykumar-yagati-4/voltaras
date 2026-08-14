@@ -290,3 +290,39 @@ git commit -m "docs(meter-reading): add API testing guide and Postman collection
 
 > Run `mvn clean package` inside `meter-reading-service` before committing
 > to confirm the module compiles and all tests pass.
+
+---
+
+## 9. Daily Electricity Usage Tracking
+
+Two consumer endpoints power the **Daily electricity tracking** screens in the
+consumer portal (both routed through the Gateway at `/api/meter-readings/**`):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/meter-readings/me/daily-usage` | Today's units, month-to-date units, estimated costs and the last 7 days of daily usage |
+| `GET /api/meter-readings/me/usage-summary?days=7` | Same summary with a configurable look-back window (1–31 days) |
+
+Both return `DailyUsageResponse` (`meterNumber`, `usageDate`, `previousReading`,
+`latestReading`, `previousReadingAt`, `latestReadingAt`, `unitsConsumedToday`,
+`estimatedPerUnitCost`, `estimatedTodayCost`, `monthUnitsSoFar`,
+`estimatedMonthCost`, `hasReadings`, `hasReadingToday`, `dailyUsage[]`).
+
+**Calculation rules** (all backend-side, from the consumer's real readings):
+
+1. Readings used: `SUBMITTED` + `VERIFIED` (REJECTED excluded), for the
+   consumer's most recently active meter.
+2. Daily consumption = difference between consecutive recorded meter values
+   (cumulative meter behaviour — a missing day reports 0 units and the next
+   recorded reading carries the gap).
+3. Today units = latest value recorded today − latest value recorded before
+   today; `hasReadingToday` is `false` when no reading exists for today.
+4. Month units so far = latest value in the current billing month − the last
+   value recorded before the month start.
+5. Costs are **estimates** mirroring `BillCalculator` (`TariffCalculator` in
+   this service): progressive slabs ₹1.50/₹2.50/₹4.00/₹6.00, ₹100 fixed
+   charge, 5% tax. `estimatedPerUnitCost` is the blended rate
+   `energyCharge(monthUnits) / monthUnits`. The generated bill remains the
+   source of truth.
+6. No reading data is ever fabricated: days without a reading return zero
+   units with `readingAt` null.
