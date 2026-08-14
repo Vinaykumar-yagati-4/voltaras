@@ -22,7 +22,7 @@ import {
   type ComplaintStatus,
   type ComplaintSummary,
 } from '@/services/complaints'
-import { formatDateTime } from '@/utils/format'
+import { formatCategoryLabel, formatDateTime } from '@/utils/format'
 import { cn } from '@/utils/cn'
 
 const STATUS_META: {
@@ -133,7 +133,8 @@ export function AdminDashboard() {
         query === '' ||
         complaint.subject.toLowerCase().includes(query) ||
         complaint.ticketNumber.toLowerCase().includes(query) ||
-        (complaint.categoryName ?? '').toLowerCase().includes(query)
+        (complaint.categoryName ?? '').toLowerCase().includes(query) ||
+        formatCategoryLabel(complaint.categoryName).toLowerCase().includes(query)
       return matchesStatus && matchesSearch
     })
   }, [allComplaints, search, statusFilter])
@@ -286,7 +287,9 @@ export function AdminDashboard() {
                       {complaint.subject}
                     </p>
                     {complaint.categoryName && (
-                      <p className="mt-0.5 text-xs text-slate-500">{complaint.categoryName}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {formatCategoryLabel(complaint.categoryName)}
+                      </p>
                     )}
                   </div>
                   <span className="text-xs text-slate-500">
