@@ -191,6 +191,8 @@ and `idempotencyKey` (internal marker — the UI never renders it).
 | GET | `/api/notifications/count/unread` | `UnreadNotificationCountResponse` | `{authUserId, unreadCount}` |
 | PATCH | `/api/notifications/{id}/read` | `NotificationResponse` | own notification only |
 | PATCH | `/api/notifications/read-all` | `204 No Content` | marks every unread notification READ |
+| POST | `/api/notifications/admin` | `NotificationResponse` | **ADMIN only** — create a `MANUAL`/`IN_APP` notification for a user (`CreateNotificationRequest`: `authUserId`, `title` (≤200), `message` (≤2000), optional `referenceType`/`referenceId`). **Not exposed in the admin UI — see blocker 3** |
+| GET | `/api/notifications/admin/user/{authUserId}` | `NotificationResponse[]` | **ADMIN only** — all notifications of a user |
 
 `NotificationResponse` includes `type` (`BILL_GENERATED|PAYMENT_SUCCESS|RECHARGE_SUCCESS|
 COMPLAINT_STATUS_UPDATED|MANUAL`), `channel`, `status` (`UNREAD|READ|FAILED`).
@@ -202,20 +204,103 @@ COMPLAINT_STATUS_UPDATED|MANUAL`), `channel`, `status` (`UNREAD|READ|FAILED`).
 
 Used to resolve `organizationId` for the wallet bill-payment flow.
 
+## 5b. Admin portal services (verified live, August 2026)
+
+All endpoints in this section require `X-User-Role = ADMIN` (enforced in the service layer),
+except where noted. The admin UI calls only these Gateway-routed paths.
+
+### Complaints administration (complaint-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/admin/complaints` | Spring `Page<ComplaintSummaryResponse>` | server-paginated (`page`, `size`), sorted `createdAt DESC`; filters `status`, `priority`, `categoryId`, `consumerId`, `assignedTo`, `fromDate` (`yyyy-MM-dd`), `toDate`. **No text-search parameter — the UI searches the loaded page client-side** |
+| GET | `/api/admin/complaints/{complaintId}` | `ComplaintDetailResponse` | full detail incl. `comments[]` + `statusHistory[]` |
+| PATCH | `/api/admin/complaints/{complaintId}/status` | `StatusUpdateResponse` | body `{status}`; only allowed transitions: `OPEN → IN_PROGRESS | RESOLVED`, `IN_PROGRESS → RESOLVED`, `RESOLVED → CLOSED`; CLOSED is terminal; same-status → 400. Publishes a `COMPLAINT_STATUS_UPDATED` notification to the consumer |
+| PUT | `/api/admin/complaints/{complaintId}/assign` | `ComplaintDetailResponse` | body `AssignComplaintRequest {assignedTo}` (positive user ID); only while OPEN or IN_PROGRESS, else 400 |
+| POST | `/api/admin/complaints/{complaintId}/comments` | `CommentResponse` (201) | body `AddComplaintCommentRequest {commentText}` (1-1000 chars); rejected on CLOSED |
+
+`ComplaintSummaryResponse` also carries `consumerId` and `assignedTo`. There is **no consumer
+name/email in the complaint payload** — the UI shows `Consumer #<id>`; user-service only
+exposes the caller's own profile (no user lookup API), so names cannot be resolved.
+
+### Organizations administration (organization-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/admin/organizations` | Spring `Page<OrganizationResponse>` | server-paginated (`page`, `size`), sorted `createdAt DESC`; filters `status`, `type`. **No text-search parameter — the UI searches the loaded page client-side** |
+| GET | `/api/admin/organizations/{organizationId}` | `OrganizationResponse` | any organization |
+| PATCH | `/api/admin/organizations/{organizationId}/suspend` | `OrganizationResponse` | `status → SUSPENDED` |
+| PATCH | `/api/admin/organizations/{organizationId}/activate` | `OrganizationResponse` | `status → ACTIVE` |
+| PUT | `/api/organizations/{organizationId}` | `OrganizationResponse` | edit (name/type/contact/address). **Not ADMIN-gated**: allowed for the org OWNER / ORGANIZATION_ADMIN only; the demo org's owner is the admin (`sunny`), so it works for the demo login. Other admins without a role in the org get 403 |
+| GET | `/api/organizations/{organizationId}/members` | Spring `Page<MembershipResponse>` | member list (`authUserId`, `membershipRole`, `membershipStatus`, `joinedAt`). Read access for ACTIVE members with a management role (OWNER / ORGANIZATION_ADMIN / MANAGER) — the demo admin is the OWNER |
+
+`OrganizationResponse` fields: `id`, `name`, `organizationCode` (unique, normalized UPPER),
+`organizationType` (`HOSTEL|INSTITUTION|APARTMENT|COMMERCIAL`), `description`, `email`,
+`phone`, `addressLine1/2`, `city`, `state`, `country`, `postalCode`, `createdByAuthUserId`,
+`status` (`ACTIVE|INACTIVE|SUSPENDED`), `createdAt`, `updatedAt`.
+
+### Structure hierarchy (organization-service) — system ADMIN can read; writes need a management role
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/organizations/{organizationId}/buildings` | `BuildingResponse[]` | plain array |
+| POST | `/api/organizations/{organizationId}/buildings` | `BuildingResponse` (201) | `{name, code, description?, address?}` |
+| PUT | `/api/buildings/{buildingId}` | `BuildingResponse` | `{name, description?, address?}` |
+| DELETE | `/api/buildings/{buildingId}` | `MessageResponse` | 400 if it contains blocks |
+| GET | `/api/buildings/{buildingId}/blocks` | `BlockResponse[]` | plain array |
+| POST | `/api/buildings/{buildingId}/blocks` | `BlockResponse` (201) | `{name, code, description?}` |
+| PUT | `/api/blocks/{blockId}` | `BlockResponse` | `{name, description?}` |
+| DELETE | `/api/blocks/{blockId}` | `MessageResponse` | 400 if it contains floors |
+| GET | `/api/blocks/{blockId}/floors` | `FloorResponse[]` | plain array, ordered by `floorNumber ASC` |
+| POST | `/api/blocks/{blockId}/floors` | `FloorResponse` (201) | `{floorNumber, name?, description?}`; duplicate `floorNumber` per block → 409 |
+| PUT | `/api/floors/{floorId}` | `FloorResponse` | `{floorNumber, name?, description?}` (floorNumber immutable) |
+| DELETE | `/api/floors/{floorId}` | `MessageResponse` | 400 if it contains units |
+| GET | `/api/floors/{floorId}/units` | `UnitResponse[]` | plain array, ordered by `unitNumber ASC` |
+| POST | `/api/floors/{floorId}/units` | `UnitResponse` (201) | `{unitNumber, unitName?, unitType, capacity?, description?}`; starts `AVAILABLE` |
+| PUT | `/api/units/{unitId}` | `UnitResponse` | `{unitName?, unitType, capacity?, description?}` |
+| PATCH | `/api/units/{unitId}/status` | `UnitResponse` | `{status}`; allowed: `AVAILABLE ⇄ OCCUPIED`, `AVAILABLE ⇄ INACTIVE`, `AVAILABLE ⇄ MAINTENANCE`, `OCCUPIED → MAINTENANCE`; else 400 |
+| DELETE | `/api/units/{unitId}` | `MessageResponse` | |
+
+**Authorization:** reads (GET above) allow the system ADMIN; all writes require an ACTIVE
+membership with role OWNER / ORGANIZATION_ADMIN / MANAGER **and** an ACTIVE parent. The demo
+admin (`sunny`) is the demo org's OWNER, so every workflow works with the demo login; other
+admins without a management role get 403 (the UI shows the normalized error).
+
+`BuildingResponse`: `id, organizationId, name, code, description, address, status, createdAt, updatedAt`.
+`BlockResponse`: `id, buildingId, buildingName, name, code, description, status, createdAt, updatedAt`.
+`FloorResponse`: `id, blockId, blockName, floorNumber, name, description, status, createdAt, updatedAt`.
+`UnitResponse`: `id, floorId, floorNumber, unitNumber, unitName, unitType, capacity, status, description, createdAt, updatedAt`.
+`StructureStatus`: `ACTIVE|INACTIVE|MAINTENANCE`. `UnitType`: `ROOM|FLAT|CLASSROOM|LAB|OFFICE|SHOP|OTHER`.
+`UnitStatus`: `AVAILABLE|OCCUPIED|INACTIVE|MAINTENANCE`.
+
 ## 6. BLOCKERS (Gateway gaps / deferred integrations — do not bypass)
 
 1. **`/api/meters/**` (meter-management-service) has no Gateway route.**
    The service exists on port 8089 with `GET /api/meters`, `GET /api/meters/{id}`, and
    `/api/meters/admin/**` CRUD, but the Gateway's route table has no entry for it, so
    browser calls to `http://localhost:8080/api/meters/**` fail (no matching route).
-   The Phase 2 portal therefore has **no `/consumer/meters` screen**; consumption is shown
-   from the routed `/api/meter-readings/**` data. Adding the meter screen requires adding
-   the Gateway route first.
+   The admin portal therefore has **no meter-management screen**; meter data is not reachable
+   through the Gateway. Adding the route requires one entry in
+   `api-gateway/src/main/resources/application.yml`:
+   ```yaml
+   - id: meter-management-service
+     uri: lb://METER-MANAGEMENT-SERVICE
+     predicates:
+       - Path=/api/meters/**
+   ```
+   (plus a restart of the gateway). This task did not modify backend or Gateway config.
 2. **Wallet recharge checkout (Razorpay) is deferred.**
    `POST /api/recharges/orders` is a real endpoint, but completing a recharge requires
    the Razorpay Checkout integration (`orderId` + public `razorpayKeyId` from the response).
    Phase 2 shows recharge history only; no checkout SDK or keys are loaded in the browser.
    A future phase should add the sandbox checkout and keep keys out of the bundle.
+3. **No user-administration API exists, so there is no `/admin/users` screen.**
+   auth-service exposes only `GET /api/auth/internal/users/{id}` (single-user, service-to-service,
+   not ADMIN-gated and not intended for the browser) and user-service exposes only the caller's
+   own `/api/users/profile`. There is no routed ADMIN API that lists or manages users, so the
+   admin portal deliberately omits user management rather than inventing one.
+4. **Manual notification compose (`POST /api/notifications/admin`) is routed but not exposed in
+   the admin UI.** Completed notifications cannot be deleted (no DELETE endpoint) and the
+   verification policy forbids permanent browser-triggered DB changes, so the admin
+   notifications screen covers the reversible operations only (list own notifications, unread
+   count, mark-read, read-all). Wiring the compose form is a small, documented follow-up.
 
 ## 7. Error response shape (consistent across services)
 
