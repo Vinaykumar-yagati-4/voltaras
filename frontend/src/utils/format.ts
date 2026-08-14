@@ -45,8 +45,16 @@ export function formatBillingMonth(month: number, year: number): string {
  * Unknown names fall back to a title-cased, underscore-spaced rendering.
  */
 export function formatCategoryLabel(name: string | null | undefined): string {
-  if (!name) return '—'
-  return name
+  return formatEnumLabel(name)
+}
+
+/**
+ * Human-readable label for any enum value, e.g. "IN_PROGRESS" → "In progress"
+ * and "APARTMENT" → "Apartment". Falls back to '—' for empty values.
+ */
+export function formatEnumLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  return value
     .toLowerCase()
     .split('_')
     .filter(Boolean)
