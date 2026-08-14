@@ -125,13 +125,13 @@ Base `/api/users/profile`, all Bearer + `X-User-Id` from Gateway.
 ### Consumer
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/complaints` | own complaints, Spring `Page` (`content[]`, `totalElements`, ...); filters `status`, `priority`, `categoryId`; default sort `createdAt DESC` |
-| POST | `/api/complaints` | `CreateComplaintRequest` — `categoryId` (required, active), `subject` (required), `description` (optional/required per DTO) |
-| GET | `/api/complaints/{id}` | own complaint detail |
+| GET | `/api/complaints` | own complaints, Spring `Page` (`content[]`, `totalElements`, `totalPages`, `number`, `size`); filters `status`, `priority`, `categoryId`; default sort `createdAt DESC` |
+| POST | `/api/complaints` | `CreateComplaintRequest` — `categoryId` (required, active), `subject` (required, 10-200 chars), `description` (required, 20-5000 chars); 201 + `ComplaintDetailResponse` |
+| GET | `/api/complaints/{id}` | own complaint detail — `ComplaintDetailResponse` includes `comments[]` (`CommentResponse`) and `statusHistory[]` (`{fromStatus, toStatus, changedBy, changedAt}`) |
 | GET | `/api/complaints/ticket/{ticketNumber}` | lookup by ticket `CMP-YYYYMMDD-NNNN` |
-| PUT | `/api/complaints/{id}` | edit while OPEN |
-| POST | `/api/complaints/{id}/comments` | comment while not CLOSED |
-| GET | `/api/complaints/categories` | active categories list (form dropdown) |
+| PUT | `/api/complaints/{id}` | edit `subject` + `description` while OPEN (`UpdateComplaintRequest`) |
+| POST | `/api/complaints/{id}/comments` | `AddComplaintCommentRequest` — `commentText` (1-1000 chars); 201; not allowed on CLOSED |
+| GET | `/api/complaints/categories` | active categories list (`CategoryResponse`: `id`, `name`, `description`) for the form dropdown |
 | GET | `/api/complaints/internal/count` | status counts, ADMIN only |
 
 ### Admin
@@ -147,21 +147,75 @@ Base `/api/users/profile`, all Bearer + `X-User-Id` from Gateway.
 Role enforcement: `X-User-Role` must be exactly `ADMIN` for `/api/admin/**` and
 `/api/complaints/internal/count`; `403` otherwise.
 
-## 5. Other services (available through Gateway, not used by Phase 1 screens)
+## 5. Consumer portal services (verified live, August 2026)
 
-- **meter-reading** `/api/meter-readings/**` — submit/list readings, admin verify/reject.
-- **bill** `/api/bills/**` — `/me`, `/me/outstanding`, `/me/filter`, admin generate/update.
-- **payment** `/api/wallet/me`, `/api/wallet/top-up`, `/api/recharges/orders`, `/api/payments/**` — wallet + Razorpay flow.
-- **organization** `/api/organizations/**`, `/api/admin/organizations/**`, `/api/buildings|blocks|floors|units/**`.
-- **notification** `/api/notifications/**` — list, unread count, mark read.
+### Bills (bill-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/bills/me` | `BillSummaryResponse[]` | **plain array, NOT a Spring Page** — client-side pagination/filtering required |
+| GET | `/api/bills/me/{billId}` | `BillResponse` | full detail incl. itemized `energyCharge`, `fixedCharge`, `taxAmount`, `lateFee`, `totalAmount`, `amountPaid`, `outstandingAmount` |
+| GET | `/api/bills/me/outstanding` | `BillSummaryResponse[]` | still-payable bills (UNPAID / PARTIALLY_PAID / FAILED, not CANCELLED) |
+| GET | `/api/bills/me/filter` | `BillSummaryResponse[]` | `month` + `year` params only |
 
-## 6. BLOCKERS (Gateway gaps — do not bypass)
+`BillResponse` includes `remarks` (may contain internal seed markers — the UI never renders them)
+and `paidAt`. Bill lifecycle statuses: `GENERATED|PENDING|PAID|OVERDUE|CANCELLED`.
+
+### Wallet + payments + recharges (payment-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/wallet/me` | `WalletResponse` | `balance`, `currency: INR` |
+| GET | `/api/payments` | Spring `Page<PaymentResponse>` | server-paginated (`page`, `size`), sorted `createdAt DESC` |
+| GET | `/api/payments/{paymentId}` | `PaymentResponse` | own payment only |
+| GET | `/api/recharges/me` | `RechargeTransactionResponse[]` | **plain array** |
+| POST | `/api/bills/{billId}/payments` | `PaymentResponse` | wallet-funded bill payment; requires `Idempotency-Key` header + `PayBillRequest {amount, currency: INR, organizationId}`; `400 INSUFFICIENT_WALLET_BALANCE` possible |
+| POST | `/api/recharges/orders` | `RechargeOrderResponse` | **NOT wired in the Phase 2 UI** — returns a Razorpay `orderId` + `razorpayKeyId` for a checkout integration; the portal displays recharge history only (no checkout, no keys handled in the browser) |
+| POST | `/api/wallet/top-up` | `WalletResponse` | local test-only endpoint — **not exposed in the UI** |
+
+`PaymentResponse` includes `paymentReference`, `transactionType` (`RECHARGE|BILL_PAYMENT|REFUND`),
+`paymentMethod` (`UPI|CARD|WALLET`), `status` (`CREATED|PENDING|SUCCESS|FAILED|CANCELLED|REFUNDED`),
+and `idempotencyKey` (internal marker — the UI never renders it).
+
+### Meter readings (meter-reading-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/meter-readings/me` | `MeterReadingResponse[]` | **plain array** of the consumer's readings; `status` `SUBMITTED|VERIFIED|REJECTED` |
+| POST | `/api/meter-readings` | `MeterReadingResponse` | submit a reading (not part of the Phase 2 portal screens) |
+
+`remarks` may contain internal seed markers — the readings UI never renders them.
+
+### Notifications (notification-service)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/notifications` | `NotificationResponse[]` | **plain array**, newest first |
+| GET | `/api/notifications/unread` | `NotificationResponse[]` | unread only |
+| GET | `/api/notifications/count/unread` | `UnreadNotificationCountResponse` | `{authUserId, unreadCount}` |
+| PATCH | `/api/notifications/{id}/read` | `NotificationResponse` | own notification only |
+| PATCH | `/api/notifications/read-all` | `204 No Content` | marks every unread notification READ |
+
+`NotificationResponse` includes `type` (`BILL_GENERATED|PAYMENT_SUCCESS|RECHARGE_SUCCESS|
+COMPLAINT_STATUS_UPDATED|MANUAL`), `channel`, `status` (`UNREAD|READ|FAILED`).
+
+### Organizations (organization-service, consumer view)
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/api/organizations/me` | `OrganizationMembership[]` | **plain array** of the user's memberships (`organizationId`, `organizationName`, `membershipRole`, `membershipStatus`) |
+
+Used to resolve `organizationId` for the wallet bill-payment flow.
+
+## 6. BLOCKERS (Gateway gaps / deferred integrations — do not bypass)
 
 1. **`/api/meters/**` (meter-management-service) has no Gateway route.**
    The service exists on port 8089 with `GET /api/meters`, `GET /api/meters/{id}`, and
    `/api/meters/admin/**` CRUD, but the Gateway's route table has no entry for it, so
    browser calls to `http://localhost:8080/api/meters/**` fail (no matching route).
-   Phase 1 does not render meter data; a meter dashboard requires adding the route first.
+   The Phase 2 portal therefore has **no `/consumer/meters` screen**; consumption is shown
+   from the routed `/api/meter-readings/**` data. Adding the meter screen requires adding
+   the Gateway route first.
+2. **Wallet recharge checkout (Razorpay) is deferred.**
+   `POST /api/recharges/orders` is a real endpoint, but completing a recharge requires
+   the Razorpay Checkout integration (`orderId` + public `razorpayKeyId` from the response).
+   Phase 2 shows recharge history only; no checkout SDK or keys are loaded in the browser.
+   A future phase should add the sandbox checkout and keep keys out of the bundle.
 
 ## 7. Error response shape (consistent across services)
 
