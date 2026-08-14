@@ -293,7 +293,7 @@ title "Step 4/7: Demo organization + memberships"
 
 ORG_ID="$(mysql_q organization_db "SELECT id FROM organizations WHERE organization_code='$ORG_CODE'")"
 if [ -z "$ORG_ID" ]; then
-    body="{\"name\":\"$ORG_NAME\",\"organizationCode\":\"$ORG_CODE\",\"organizationType\":\"APARTMENT\",\"description\":\"$SEED_TAG Demo apartment society for local development.\",\"email\":\"demo.society@$EMAIL_DOMAIN\",\"phone\":\"9000000000\",\"addressLine1\":\"Plot 12, Road No 2, Kukatpally Housing Board\",\"city\":\"$CITY\",\"state\":\"$STATE\",\"country\":\"$COUNTRY\",\"postalCode\":\"500072\"}"
+    body="{\"name\":\"$ORG_NAME\",\"organizationCode\":\"$ORG_CODE\",\"organizationType\":\"APARTMENT\",\"description\":\"Residential electricity service organization for Hyderabad consumers.\",\"email\":\"demo.society@$EMAIL_DOMAIN\",\"phone\":\"9000000000\",\"addressLine1\":\"Plot 12, Road No 2, Kukatpally Housing Board\",\"city\":\"$CITY\",\"state\":\"$STATE\",\"country\":\"$COUNTRY\",\"postalCode\":\"500072\"}"
     api POST "$GATEWAY_URL/api/organizations" "$body" "$ADMIN_TOKEN"
     ORG_ID="$(json_get id <<<"$HTTP_BODY")"
     echo "  organization created: $ORG_CODE (id=$ORG_ID)"

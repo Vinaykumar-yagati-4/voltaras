@@ -308,7 +308,7 @@ if ($null -eq $org) {
         name             = $OrgName
         organizationCode = $OrgCode
         organizationType = "APARTMENT"
-        description      = "$SeedTag Demo apartment society for local development."
+        description      = "Residential electricity service organization for Hyderabad consumers."
         email            = "demo.society@$EmailDomain"
         phone            = "9000000000"
         addressLine1     = "Plot 12, Road No 2, Kukatpally Housing Board"
