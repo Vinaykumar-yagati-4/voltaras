@@ -245,6 +245,8 @@ public class BillController {
     public ResponseEntity<List<BillSummaryResponse>> getAllBills(
             @Parameter(description = "Role injected by the API Gateway (ADMIN or ROLE_ADMIN)", example = "ADMIN")
             @RequestHeader("X-User-Role") String systemRole,
+            @Parameter(description = "Optional consumer userId filter", example = "13")
+            @RequestParam(required = false) Long authUserId,
             @Parameter(description = "Optional bill status filter", example = "GENERATED")
             @RequestParam(required = false) BillStatus status,
             @Parameter(description = "Optional billing month filter (1-12)", example = "8")
@@ -253,7 +255,7 @@ public class BillController {
             @RequestParam(required = false) Integer year) {
 
         List<BillSummaryResponse> response =
-                billService.getAllBills(systemRole, status, month, year);
+                billService.getAllBills(systemRole, authUserId, status, month, year);
 
         return ResponseEntity.ok(response);
     }

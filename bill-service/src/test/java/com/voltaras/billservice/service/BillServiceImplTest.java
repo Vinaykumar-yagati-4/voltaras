@@ -258,6 +258,48 @@ class BillServiceImplTest {
     }
 
     // ------------------------------------------------------------------
+    // Admin list
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Admin list: filters by consumer when authUserId provided")
+    void getAllBills_authUserFilter_returnsOwnedBills() {
+
+        Bill owned = buildBill();
+
+        when(billRepository.findAdminFiltered(
+                eq(USER_ID), eq(null), eq(null), eq(null)))
+                .thenReturn(List.of(owned));
+        when(billMapper.toSummary(owned)).thenReturn(null);
+
+        assertThat(billService.getAllBills("ADMIN", USER_ID, null, null, null))
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Admin list: non-admin caller rejected")
+    void getAllBills_nonAdmin_throwsForbidden() {
+
+        doThrow(new ForbiddenOperationException(
+                "Only system ADMIN users can perform this operation"))
+                .when(accessHelper).requireSystemAdmin("CONSUMER");
+
+        assertThatThrownBy(() -> billService.getAllBills(
+                "CONSUMER", USER_ID, null, null, null))
+                .isInstanceOf(ForbiddenOperationException.class);
+    }
+
+    @Test
+    @DisplayName("Admin list: invalid month rejected")
+    void getAllBills_invalidMonth_throwsBusinessRule() {
+
+        assertThatThrownBy(() -> billService.getAllBills(
+                "ADMIN", null, null, 13, null))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Billing month must be between 1 and 12");
+    }
+
+    // ------------------------------------------------------------------
     // Cancel
     // ------------------------------------------------------------------
 

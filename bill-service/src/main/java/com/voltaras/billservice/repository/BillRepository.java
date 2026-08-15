@@ -81,12 +81,14 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
      */
     @Query("""
             SELECT b FROM Bill b
-            WHERE (:status IS NULL OR b.billStatus = :status)
+            WHERE (:authUserId IS NULL OR b.authUserId = :authUserId)
+              AND (:status IS NULL OR b.billStatus = :status)
               AND (:month IS NULL OR b.billingMonth = :month)
               AND (:year IS NULL OR b.billingYear = :year)
             ORDER BY b.createdAt DESC
             """)
     List<Bill> findAdminFiltered(
+            @Param("authUserId") Long authUserId,
             @Param("status") BillStatus status,
             @Param("month") Integer month,
             @Param("year") Integer year

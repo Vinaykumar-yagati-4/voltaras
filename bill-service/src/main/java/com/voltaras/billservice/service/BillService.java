@@ -35,6 +35,7 @@ public interface BillService {
 
     List<BillSummaryResponse> getAllBills(
             String systemRole,
+            Long authUserId,
             BillStatus status,
             Integer month,
             Integer year

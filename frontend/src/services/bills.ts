@@ -72,6 +72,23 @@ export async function generateBill(input: {
   return data
 }
 
+/**
+ * Admin: lists bills, optionally filtered by consumer userId, status,
+ * month and year. Used by the prepare-consumer flow to show which bills
+ * already exist for the looked-up user.
+ */
+export async function getAdminBills(input?: {
+  authUserId?: number
+  status?: BillStatus
+  month?: number
+  year?: number
+}): Promise<BillSummary[]> {
+  const { data } = await api.get<BillSummary[]>('/api/bills/admin', {
+    params: input,
+  })
+  return data
+}
+
 export function billPeriodLabel(month: number, year: number): string {
   const date = new Date(year, month - 1, 1)
   return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })

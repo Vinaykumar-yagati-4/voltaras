@@ -231,7 +231,11 @@ public class BillServiceImpl implements BillService {
     @Override
     @Transactional(readOnly = true)
     public List<BillSummaryResponse> getAllBills(
-            String systemRole, BillStatus status, Integer month, Integer year) {
+            String systemRole,
+            Long authUserId,
+            BillStatus status,
+            Integer month,
+            Integer year) {
 
         accessHelper.requireSystemAdmin(systemRole);
 
@@ -241,10 +245,10 @@ public class BillServiceImpl implements BillService {
         }
 
         List<Bill> bills =
-                billRepository.findAdminFiltered(status, month, year);
+                billRepository.findAdminFiltered(authUserId, status, month, year);
 
-        log.info("Admin {} fetched {} bills (status={}, month={}, year={})",
-                systemRole, bills.size(), status, month, year);
+        log.info("Admin {} fetched {} bills (authUserId={}, status={}, month={}, year={})",
+                systemRole, bills.size(), authUserId, status, month, year);
 
         return bills.stream()
                 .map(billMapper::toSummary)
