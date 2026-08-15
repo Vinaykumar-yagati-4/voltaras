@@ -142,6 +142,12 @@ export function ConsumerDashboard() {
               Welcome back, {firstName ?? 'there'}
             </h1>
             <p className="truncate text-sm text-slate-500">{user?.email}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-1.5">
+              <Badge tone="green">User ID #{user?.userId}</Badge>
+              <span className="text-xs text-slate-500">
+                Share this User ID with admin for account preparation.
+              </span>
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">

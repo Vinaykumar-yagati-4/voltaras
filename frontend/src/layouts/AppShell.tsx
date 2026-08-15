@@ -159,6 +159,11 @@ function SidebarBody({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">{user?.fullName}</p>
             <p className="truncate text-xs text-slate-400">{user?.email}</p>
+            {user?.userId != null && (
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-volt-300">
+                ID #{user.userId}
+              </p>
+            )}
           </div>
           <Badge tone="blue" className="bg-volt-500/20 text-volt-100 ring-volt-400/30">
             {user?.role}

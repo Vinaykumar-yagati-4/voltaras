@@ -26,6 +26,7 @@ import {
 import { getMyProfile } from '@/services/profile'
 import { getMyReadings } from '@/services/readings'
 import { getMyWallet } from '@/services/wallet'
+import { useAuth } from '@/hooks/useAuth'
 import { ApiError } from '@/types/api'
 import { cn } from '@/utils/cn'
 import { formatDateTime } from '@/utils/format'
@@ -192,6 +193,7 @@ function JoinRequestForm({ onRequested }: { onRequested: () => void }) {
  * prepared (profile + membership + meter + reading + bill).
  */
 export function AccountSetupCard() {
+  const { user } = useAuth()
   const [requestSubmitted, setRequestSubmitted] = useState(false)
 
   const profileQuery = useQuery({ queryKey: ['profile'], queryFn: getMyProfile })
@@ -254,6 +256,11 @@ export function AccountSetupCard() {
             <p className="mt-1 text-sm text-slate-600">
               A few quick steps and your electricity service will be ready. Your progress:{' '}
               {doneCount} of 5.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              You are logged in as{' '}
+              <span className="font-medium text-navy-800">{user?.email}</span> · User ID{' '}
+              <span className="font-medium text-navy-800">#{user?.userId}</span>
             </p>
           </div>
           <div className="flex items-center gap-1" aria-hidden="true">
@@ -368,6 +375,9 @@ export function AccountSetupCard() {
         <p className="flex items-center gap-1.5 text-xs text-slate-500">
           <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
           Your progress updates automatically as VOLTARAS prepares your account.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Share your User ID (#{user?.userId}) with admin for account preparation.
         </p>
       </div>
     </Card>

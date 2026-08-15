@@ -6,7 +6,9 @@ import {
   Gauge,
   Hash,
   Link2,
+  Plus,
   ReceiptText,
+  RefreshCw,
   Search,
   ShieldCheck,
   UserRound,
@@ -86,6 +88,19 @@ function daysFromToday(days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
+/**
+ * Generates a unique meter number: MTR-<userId>-<YYYYMMDD>-<random4>.
+ * The random suffix makes every call (or Regenerate click) yield a new value
+ * so the operator never has to invent a meter number by hand.
+ */
+function generateMeterNumber(userId: number): string {
+  const now = new Date()
+  const yyyymmdd =
+    `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  const suffix = String(Math.floor(1000 + Math.random() * 9000))
+  return `MTR-${userId}-${yyyymmdd}-${suffix}`
+}
+
 export function PrepareConsumerPage() {
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState('')
@@ -94,6 +109,7 @@ export function PrepareConsumerPage() {
   const [pageError, setPageError] = useState<string | null>(null)
 
   // Step 3 — meter form
+  const [addAnotherMeter, setAddAnotherMeter] = useState(false)
   const [meterNumber, setMeterNumber] = useState('')
   const [meterType, setMeterType] = useState<'SMART' | 'ANALOG' | 'PREPAID'>('SMART')
   const [connectionType, setConnectionType] = useState<'RESIDENTIAL' | 'COMMERCIAL'>('RESIDENTIAL')
@@ -176,6 +192,9 @@ export function PrepareConsumerPage() {
   const userReadings = userReadingsQuery.data ?? []
   const existingBill = userBills[0] ?? null
   const firstMeterNumber = userMeters[0]?.meterNumber ?? ''
+  const activeMeters = userMeters.filter((m) => m.status === 'ACTIVE')
+  // Do not auto-show the create form when an ACTIVE meter already exists.
+  const showCreateMeterForm = addAnotherMeter || activeMeters.length === 0
 
   const lookedUpUser = lookedUpUserQuery.data ?? null
   const lookedUpUserNotFound =
@@ -183,10 +202,16 @@ export function PrepareConsumerPage() {
     lookedUpUserQuery.isError &&
     lookedUpUserQuery.error instanceof ApiError &&
     lookedUpUserQuery.error.status === 404
+  const userIsConsumer = lookedUpUser?.role === 'CONSUMER'
 
+  // Auto-generate a unique meter number whenever the create form is shown for
+  // a consumer with no ACTIVE meter — the operator should never have to invent
+  // one. Regenerating is available next to the field.
   useEffect(() => {
-    if (firstMeterNumber && !meterNumber) setMeterNumber(firstMeterNumber)
-  }, [firstMeterNumber, meterNumber])
+    if (lookedUpUserId != null && userIsConsumer && showCreateMeterForm) {
+      setMeterNumber(generateMeterNumber(lookedUpUserId))
+    }
+  }, [lookedUpUserId, userIsConsumer, showCreateMeterForm])
 
   const invalidateUserState = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin-meters-by-user', lookedUpUserId] })
@@ -246,7 +271,9 @@ export function PrepareConsumerPage() {
     },
     onSuccess: () => {
       setPageError(null)
-      setMeterNumber('')
+      // Keep a fresh generated number ready in case the form stays open for
+      // another (opt-in) meter.
+      setMeterNumber(generateMeterNumber(lookedUpUserId as number))
       invalidateUserState()
     },
     onError: (error: unknown) => {
@@ -296,7 +323,38 @@ export function PrepareConsumerPage() {
   })
 
   const [readingMeterNumberInput, setReadingMeterNumberInput] = useState('')
-  const readingMeterNumber = readingMeterNumberInput || firstMeterNumber || meterNumber
+  const readingMeterNumber = readingMeterNumberInput || firstMeterNumber
+  // The backend rejects a duplicate reading for the same user + meter + date.
+  const readingAlreadyExists = userReadings.some(
+    (r) => r.meterNumber === readingMeterNumber && r.readingDate === readingDate,
+  )
+  // The backend rejects a duplicate bill for user + meter + month + year.
+  const billMeterNumber = createdReading?.meterNumber ?? ''
+  const effectiveBillingMonth = Number(billingMonth) || createdReading?.billingMonth || 0
+  const effectiveBillingYear = Number(billingYear) || createdReading?.billingYear || 0
+  const billAlreadyExists = userBills.some(
+    (b) =>
+      b.meterNumber === billMeterNumber &&
+      b.billingMonth === effectiveBillingMonth &&
+      b.billingYear === effectiveBillingYear,
+  )
+
+  const duplicateMeters = userMeters.length > 1
+  const duplicateReadings = userReadings.some(
+    (r, index) =>
+      userReadings.findIndex(
+        (x) => x.meterNumber === r.meterNumber && x.readingDate === r.readingDate,
+      ) !== index,
+  )
+  const duplicateBills = userBills.some(
+    (b, index) =>
+      userBills.findIndex(
+        (x) =>
+          x.meterNumber === b.meterNumber &&
+          x.billingMonth === b.billingMonth &&
+          x.billingYear === b.billingYear,
+      ) !== index,
+  )
 
   // Step 5 — bill generation
   const billMutation = useMutation({
@@ -381,6 +439,11 @@ export function PrepareConsumerPage() {
             </Button>
           </div>
 
+          <p className="rounded-md border border-volt-100 bg-volt-50/60 px-3 py-2 text-xs text-navy-800">
+            Ask the consumer to read their User ID from the dashboard/sidebar. Enter that exact ID
+            here.
+          </p>
+
           {userIdNumber != null && (
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="blue">User #{userIdNumber}</Badge>
@@ -394,15 +457,68 @@ export function PrepareConsumerPage() {
           )}
 
           {lookedUpUser && (
-            <Alert
-              tone="info"
-              title={`Confirm this is the consumer's own login account`}
-            >
-              User #{userIdNumber} is <span className="font-medium">{lookedUpUser.fullName}</span> ({lookedUpUser.email}).
-              Preparation only appears on the dashboard of this exact userId — the entered userId
-              must match the userId the consumer gets from their registration or login. If the
-              consumer is a different person, look up their real userId instead.
-            </Alert>
+            <div className="rounded-lg border-2 border-volt-200 bg-gradient-to-br from-volt-50 via-white to-navy-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold uppercase tracking-wide text-navy-900">
+                  Account identity
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={userIsConsumer ? 'green' : 'red'}>{lookedUpUser.role}</Badge>
+                  <Badge tone={lookedUpUser.active ? 'green' : 'slate'}>
+                    {lookedUpUser.active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    User ID
+                  </dt>
+                  <dd className="mt-0.5 font-mono text-base font-bold text-navy-900">
+                    #{userIdNumber}
+                  </dd>
+                </div>
+                <div className="sm:col-span-1">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Email
+                  </dt>
+                  <dd className="mt-0.5 break-all text-sm font-medium text-navy-900">
+                    {lookedUpUser.email}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Full name
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy-900">
+                    {lookedUpUser.fullName}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Role
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy-900">
+                    {lookedUpUser.role}
+                  </dd>
+                </div>
+              </dl>
+              <Alert tone="warning" className="mt-3">
+                This must match the User ID and email shown on the consumer dashboard after login.
+                Preparing a different userId will not show up on their dashboard.
+              </Alert>
+              {!userIsConsumer && (
+                <Alert
+                  tone="error"
+                  className="mt-3"
+                  title={`User #${userIdNumber} is not a CONSUMER account`}
+                >
+                  {lookedUpUser.fullName} ({lookedUpUser.email}) is registered as{' '}
+                  {lookedUpUser.role}. Only CONSUMER accounts can be prepared here — look up the
+                  consumer's own userId instead.
+                </Alert>
+              )}
+            </div>
           )}
 
           {lookedUpUserNotFound && (
@@ -442,6 +558,16 @@ export function PrepareConsumerPage() {
                   ? 'No registered account matches this userId. Enter the exact userId returned after the consumer registers or logs in — preparing a different userId will not show up on their dashboard.'
                   : 'The account could not be verified right now. Try looking the user up again.'
               }
+            />
+          </CardBody>
+        </Card>
+      ) : !userIsConsumer ? (
+        <Card>
+          <CardBody>
+            <EmptyState
+              icon={ShieldCheck}
+              title={`User #${userIdNumber} is not a consumer account`}
+              description={`${lookedUpUser?.fullName} (${lookedUpUser?.email}) is registered with role ${lookedUpUser?.role}. Account preparation is blocked — only CONSUMER accounts can be linked to organizations, meters, readings and bills. Look up the consumer's own userId instead.`}
             />
           </CardBody>
         </Card>
@@ -545,68 +671,103 @@ export function PrepareConsumerPage() {
                     ))}
                   </Alert>
                   <p className="text-xs text-slate-500">
-                    If the user needs a second meter, create and assign a new one below.
+                    The first meter is used for reading and billing automatically. Creating another
+                    meter is optional and only needed if the consumer genuinely has a second
+                    connection — it is not required to proceed.
                   </p>
+                  {!showCreateMeterForm && (
+                    <Button variant="secondary" onClick={() => setAddAnotherMeter(true)}>
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Add another meter
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-slate-600">
-                  No meters are assigned to this user yet.
+                  No meters are assigned to this user yet. A unique meter number is
+                  generated automatically below — no need to invent one.
                 </p>
               )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input
-                  label="Meter number"
-                  placeholder="e.g. MTR-2026-0042"
-                  value={meterNumber}
-                  onChange={(e) => setMeterNumber(e.target.value)}
-                />
-                <Select
-                  label="Meter type"
-                  options={[
-                    { value: 'SMART', label: 'Smart' },
-                    { value: 'ANALOG', label: 'Analog' },
-                    { value: 'PREPAID', label: 'Prepaid' },
-                  ]}
-                  value={meterType}
-                  onChange={(e) => setMeterType(e.target.value as 'SMART' | 'ANALOG' | 'PREPAID')}
-                />
-                <Select
-                  label="Connection type"
-                  options={[
-                    { value: 'RESIDENTIAL', label: 'Residential' },
-                    { value: 'COMMERCIAL', label: 'Commercial' },
-                  ]}
-                  value={connectionType}
-                  onChange={(e) =>
-                    setConnectionType(e.target.value as 'RESIDENTIAL' | 'COMMERCIAL')
-                  }
-                />
-                <Select
-                  label="Phase"
-                  options={[
-                    { value: 'SINGLE_PHASE', label: 'Single phase' },
-                    { value: 'THREE_PHASE', label: 'Three phase' },
-                  ]}
-                  value={phaseType}
-                  onChange={(e) => setPhaseType(e.target.value as 'SINGLE_PHASE' | 'THREE_PHASE')}
-                />
-                <Input
-                  label="Sanctioned load (kW)"
-                  inputMode="decimal"
-                  value={sanctionedLoad}
-                  onChange={(e) => setSanctionedLoad(e.target.value)}
-                />
-              </div>
+              {showCreateMeterForm && (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="flex items-end gap-2 sm:col-span-2">
+                      <Input
+                        className="flex-1"
+                        label="Meter number"
+                        placeholder="MTR-<userId>-<date>-<code>"
+                        value={meterNumber}
+                        onChange={(e) => setMeterNumber(e.target.value)}
+                      />
+                      <Button
+                        variant="secondary"
+                        className="mb-0.5 shrink-0"
+                        onClick={() => {
+                          if (lookedUpUserId != null) {
+                            setMeterNumber(generateMeterNumber(lookedUpUserId))
+                          }
+                        }}
+                      >
+                        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                        Regenerate
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 sm:col-span-2">
+                      Auto-generated unique meter number. You can edit it if needed.
+                    </p>
+                    <Select
+                      label="Meter type"
+                      options={[
+                        { value: 'SMART', label: 'Smart' },
+                        { value: 'ANALOG', label: 'Analog' },
+                        { value: 'PREPAID', label: 'Prepaid' },
+                      ]}
+                      value={meterType}
+                      onChange={(e) =>
+                        setMeterType(e.target.value as 'SMART' | 'ANALOG' | 'PREPAID')
+                      }
+                    />
+                    <Select
+                      label="Connection type"
+                      options={[
+                        { value: 'RESIDENTIAL', label: 'Residential' },
+                        { value: 'COMMERCIAL', label: 'Commercial' },
+                      ]}
+                      value={connectionType}
+                      onChange={(e) =>
+                        setConnectionType(e.target.value as 'RESIDENTIAL' | 'COMMERCIAL')
+                      }
+                    />
+                    <Select
+                      label="Phase"
+                      options={[
+                        { value: 'SINGLE_PHASE', label: 'Single phase' },
+                        { value: 'THREE_PHASE', label: 'Three phase' },
+                      ]}
+                      value={phaseType}
+                      onChange={(e) =>
+                        setPhaseType(e.target.value as 'SINGLE_PHASE' | 'THREE_PHASE')
+                      }
+                    />
+                    <Input
+                      label="Sanctioned load (kW)"
+                      inputMode="decimal"
+                      value={sanctionedLoad}
+                      onChange={(e) => setSanctionedLoad(e.target.value)}
+                    />
+                  </div>
 
-              <Button
-                loading={meterMutation.isPending}
-                disabled={!meterNumber.trim() || !sanctionedLoad}
-                onClick={() => meterMutation.mutate()}
-              >
-                <Link2 className="h-4 w-4" aria-hidden="true" />
-                Create and assign meter
-              </Button>
+                  <Button
+                    loading={meterMutation.isPending}
+                    disabled={!meterNumber.trim() || !sanctionedLoad}
+                    onClick={() => meterMutation.mutate()}
+                  >
+                    <Link2 className="h-4 w-4" aria-hidden="true" />
+                    Create and assign meter
+                  </Button>
+                </>
+              )}
             </CardBody>
           </Card>
 
@@ -622,12 +783,32 @@ export function PrepareConsumerPage() {
             </CardHeader>
             <CardBody className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Input
-                  label="Meter number"
-                  placeholder={firstMeterNumber || 'e.g. MTR-2026-0042'}
-                  value={readingMeterNumberInput}
-                  onChange={(e) => setReadingMeterNumberInput(e.target.value)}
-                />
+                {userMeters.length > 1 ? (
+                  <Select
+                    label="Meter"
+                    hint="Multiple meters exist — choose which one this reading is for."
+                    options={userMeters.map((m) => ({
+                      value: m.meterNumber,
+                      label: `${m.meterNumber} · ${m.status}`,
+                    }))}
+                    value={readingMeterNumber}
+                    onChange={(e) => setReadingMeterNumberInput(e.target.value)}
+                  />
+                ) : userMeters.length === 1 ? (
+                  <div>
+                    <p className="mb-1.5 block text-sm font-medium text-navy-800">Meter</p>
+                    <p className="flex h-11 items-center rounded-md border border-slate-200 bg-slate-50 px-3 font-mono text-sm text-navy-900">
+                      {readingMeterNumber}
+                    </p>
+                  </div>
+                ) : (
+                  <Input
+                    label="Meter number"
+                    placeholder="e.g. MTR-2026-0042"
+                    value={readingMeterNumberInput}
+                    onChange={(e) => setReadingMeterNumberInput(e.target.value)}
+                  />
+                )}
                 <Input
                   label="Previous reading"
                   inputMode="decimal"
@@ -652,18 +833,20 @@ export function PrepareConsumerPage() {
 
               <Button
                 loading={readingMutation.isPending}
-                disabled={!readingMeterNumber || !readingCurrent}
+                disabled={
+                  !readingMeterNumber || !readingCurrent || readingAlreadyExists
+                }
                 onClick={() => readingMutation.mutate()}
               >
                 <Gauge className="h-4 w-4" aria-hidden="true" />
                 Record and verify reading
               </Button>
 
-              {userReadings.some((r) => r.meterNumber === readingMeterNumber) && (
-                <Alert tone="warning" title="A reading already exists for this meter">
-                  User #{userIdNumber} already has a reading for {readingMeterNumber} — see the
-                  account status below. Recording the same meter and date again is rejected as a
-                  duplicate.
+              {readingAlreadyExists && (
+                <Alert tone="error" title="Reading already exists">
+                  User #{userIdNumber} already has a reading for {readingMeterNumber} on{' '}
+                  {readingDate}. The backend rejects duplicates for the same user, meter and date —
+                  the existing reading is shown in the account status below.
                 </Alert>
               )}
 
@@ -717,18 +900,30 @@ export function PrepareConsumerPage() {
 
                   <Button
                     loading={billMutation.isPending}
-                    disabled={!billingMonth || !billingYear || !dueDate}
+                    disabled={
+                      !billingMonth || !billingYear || !dueDate || billAlreadyExists
+                    }
                     onClick={() => billMutation.mutate()}
                   >
                     <ReceiptText className="h-4 w-4" aria-hidden="true" />
                     Generate bill
                   </Button>
 
+                  {billAlreadyExists && (
+                    <Alert tone="error" title="Bill already exists">
+                      A bill already exists for user #{userIdNumber}, meter {billMeterNumber} and{' '}
+                      {billPeriodLabel(effectiveBillingMonth, effectiveBillingYear)}. The backend
+                      rejects duplicates for the same user, meter, month and year — see the account
+                      status below.
+                    </Alert>
+                  )}
+
                   {existingBill && (
-                    <Alert tone="warning" title="This user already has a bill for this period">
+                    <Alert tone="warning" title="This user already has a bill">
                       Bill #{existingBill.id} · {existingBill.meterNumber} ·{' '}
                       {billPeriodLabel(existingBill.billingMonth, existingBill.billingYear)} ·{' '}
-                      {formatCurrency(existingBill.totalAmount)} · {existingBill.billStatus}
+                      {formatCurrency(existingBill.totalAmount)} · {existingBill.billStatus} already
+                      exists for user #{userIdNumber} — the consumer sees it on their bills page.
                     </Alert>
                   )}
 
@@ -754,6 +949,10 @@ export function PrepareConsumerPage() {
               />
             </CardHeader>
             <CardBody className="space-y-2">
+              <p className="rounded-md border border-volt-100 bg-volt-50/60 px-3 py-2 text-sm font-medium text-navy-900">
+                Prepared account: <span className="font-mono">{lookedUpUser?.email}</span> · User
+                ID <span className="font-mono">#{userIdNumber}</span>
+              </p>
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div className="rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -762,17 +961,21 @@ export function PrepareConsumerPage() {
                   <dd className="mt-0.5 text-navy-900">
                     {membership
                       ? `${membership.organizationName} · ${membership.membershipStatus}`
-                      : 'Not linked'}
+                      : orgIdNumber == null
+                        ? 'Select an organization to check membership'
+                        : 'Not linked to this organization'}
                   </dd>
                 </div>
                 <div className="rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Meters
+                    Active meters
                   </dt>
                   <dd className="mt-0.5 font-mono text-navy-900">
-                    {userMeters.length > 0
-                      ? userMeters.map((m) => m.meterNumber).join(', ')
-                      : 'None yet'}
+                    {activeMeters.length > 0
+                      ? activeMeters.map((m) => m.meterNumber).join(', ')
+                      : userMeters.length > 0
+                        ? 'None active'
+                        : 'None yet'}
                   </dd>
                 </div>
                 <div className="rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
@@ -815,6 +1018,23 @@ export function PrepareConsumerPage() {
                   </dd>
                 </div>
               </dl>
+              {(duplicateMeters || duplicateReadings || duplicateBills) && (
+                <Alert tone="warning" title="Duplicates detected in the prepared account">
+                  {duplicateMeters && (
+                    <p>Multiple meters are assigned to this user ({userMeters.length}).</p>
+                  )}
+                  {duplicateReadings && (
+                    <p>Multiple readings exist for the same meter and date.</p>
+                  )}
+                  {duplicateBills && (
+                    <p>Multiple bills exist for the same meter and billing period.</p>
+                  )}
+                  <p className="mt-1">
+                    No further meters, readings or bills are created automatically — resolve the
+                    duplicates manually if they were unintended.
+                  </p>
+                </Alert>
+              )}
               {existingBill && (
                 <Alert tone="warning" title="This user already has a bill">
                   Bill #{existingBill.id} for {existingBill.meterNumber} ·{' '}
