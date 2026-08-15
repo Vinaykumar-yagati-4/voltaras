@@ -223,7 +223,9 @@ export function AccountSetupCard() {
     (r) => r.status === 'PENDING',
   )
   const hasMeter = (metersQuery.data ?? []).length > 0
-  const hasReadings = (readingsQuery.data ?? []).length > 0
+  // Only VERIFIED readings count towards setup — a submitted reading is not
+  // yet billable, so the step stays waiting until an admin verifies it.
+  const hasReadings = (readingsQuery.data ?? []).some((r) => r.status === 'VERIFIED')
   const hasBills = (billsQuery.data ?? []).length > 0
   const walletBalance = walletQuery.data?.balance ?? 0
 

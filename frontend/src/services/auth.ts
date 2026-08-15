@@ -13,6 +13,26 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data
 }
 
+/**
+ * Identity of a user by id (email, fullName, role, active), returned by the
+ * auth-service internal lookup which the gateway exposes at
+ * GET /api/auth/internal/users/{userId}. Used by the admin prepare-consumer
+ * flow so the operator can confirm the entered userId matches the consumer's
+ * own login before preparing the account.
+ */
+export interface InternalUserInfo {
+  userId: number
+  email: string
+  fullName: string
+  role: string
+  active: boolean
+}
+
+export async function getUserById(userId: number): Promise<InternalUserInfo> {
+  const { data } = await api.get<InternalUserInfo>(`/api/auth/internal/users/${userId}`)
+  return data
+}
+
 export async function register(payload: RegisterPayload): Promise<LoginResponse> {
   const { data } = await api.post<LoginResponse>('/api/auth/register', payload)
   return data

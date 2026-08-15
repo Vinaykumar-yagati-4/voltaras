@@ -16,9 +16,16 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { generateBill, type BillDetail } from '@/services/bills'
+import {
+  billPeriodLabel,
+  generateBill,
+  getAdminBills,
+  type BillDetail,
+  type BillSummary,
+} from '@/services/bills'
 import {
   createMeter,
   assignMeter,
@@ -32,7 +39,13 @@ import {
   getOrganizationJoinRequests,
   getOrganizationMembers,
 } from '@/services/organizations'
-import { createAdminReading, verifyAdminReading, type MeterReading } from '@/services/readings'
+import {
+  createAdminReading,
+  getAdminReadings,
+  verifyAdminReading,
+  type MeterReading,
+} from '@/services/readings'
+import { getUserById } from '@/services/auth'
 import { ApiError } from '@/types/api'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 
@@ -111,6 +124,27 @@ export function PrepareConsumerPage() {
     enabled: lookedUpUserId != null,
   })
 
+  const userBillsQuery = useQuery({
+    queryKey: ['admin-bills-by-user', lookedUpUserId],
+    queryFn: () => getAdminBills({ authUserId: lookedUpUserId as number }),
+    enabled: lookedUpUserId != null,
+  })
+
+  // Identity of the looked-up user so the operator can confirm the entered
+  // userId matches the consumer's own login account before preparing it.
+  const lookedUpUserQuery = useQuery({
+    queryKey: ['admin-user-identity', lookedUpUserId],
+    queryFn: () => getUserById(lookedUpUserId as number),
+    enabled: lookedUpUserId != null,
+    retry: false,
+  })
+
+  const userReadingsQuery = useQuery({
+    queryKey: ['admin-readings-by-user', lookedUpUserId],
+    queryFn: () => getAdminReadings({ authUserId: lookedUpUserId as number }),
+    enabled: lookedUpUserId != null,
+  })
+
   const orgIdNumber = selectedOrgId ? Number(selectedOrgId) : null
 
   const orgMembersQuery = useQuery({
@@ -138,7 +172,17 @@ export function PrepareConsumerPage() {
   }, [joinRequestsQuery.data, lookedUpUserId])
 
   const userMeters = metersQuery.data ?? []
+  const userBills = userBillsQuery.data ?? []
+  const userReadings = userReadingsQuery.data ?? []
+  const existingBill = userBills[0] ?? null
   const firstMeterNumber = userMeters[0]?.meterNumber ?? ''
+
+  const lookedUpUser = lookedUpUserQuery.data ?? null
+  const lookedUpUserNotFound =
+    lookedUpUserId != null &&
+    lookedUpUserQuery.isError &&
+    lookedUpUserQuery.error instanceof ApiError &&
+    lookedUpUserQuery.error.status === 404
 
   useEffect(() => {
     if (firstMeterNumber && !meterNumber) setMeterNumber(firstMeterNumber)
@@ -146,6 +190,8 @@ export function PrepareConsumerPage() {
 
   const invalidateUserState = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin-meters-by-user', lookedUpUserId] })
+    void queryClient.invalidateQueries({ queryKey: ['admin-bills-by-user', lookedUpUserId] })
+    void queryClient.invalidateQueries({ queryKey: ['admin-readings-by-user', lookedUpUserId] })
     void queryClient.invalidateQueries({ queryKey: ['organization-members', orgIdNumber, lookedUpUserId] })
     void queryClient.invalidateQueries({ queryKey: ['organization-join-requests', orgIdNumber] })
   }
@@ -234,6 +280,13 @@ export function PrepareConsumerPage() {
       invalidateUserState()
     },
     onError: (error: unknown) => {
+      if (error instanceof ApiError && /already exists/i.test(error.message)) {
+        setPageError(
+          `A reading already exists for this user, meter and date — the backend rejected the duplicate. ` +
+            `Existing readings for user #${lookedUpUserId} are listed below in the account status.`,          
+        )
+        return
+      }
       setPageError(
         error instanceof ApiError
           ? `Reading could not be recorded: ${error.message}`
@@ -266,6 +319,13 @@ export function PrepareConsumerPage() {
       setPageError(null)
     },
     onError: (error: unknown) => {
+      if (error instanceof ApiError && /already exists/i.test(error.message)) {
+        setPageError(
+          `A bill already exists for this user, meter and billing period — the backend rejected the duplicate. ` +
+            `Existing bills for user #${lookedUpUserId} are listed below in the account status.`,
+        )
+        return
+      }
       setPageError(
         error instanceof ApiError
           ? `Bill could not be generated: ${error.message}`
@@ -324,12 +384,33 @@ export function PrepareConsumerPage() {
           {userIdNumber != null && (
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="blue">User #{userIdNumber}</Badge>
+              {lookedUpUser && <Badge tone="green">{lookedUpUser.email}</Badge>}
               {userMeters.length > 0 && (
                 <Badge tone="green">{userMeters.length} meter(s) assigned</Badge>
               )}
               {membership && <Badge tone="green">Member of this organization</Badge>}
               {pendingRequest && <Badge tone="amber">Pending join request</Badge>}
             </div>
+          )}
+
+          {lookedUpUser && (
+            <Alert
+              tone="info"
+              title={`Confirm this is the consumer's own login account`}
+            >
+              User #{userIdNumber} is <span className="font-medium">{lookedUpUser.fullName}</span> ({lookedUpUser.email}).
+              Preparation only appears on the dashboard of this exact userId — the entered userId
+              must match the userId the consumer gets from their registration or login. If the
+              consumer is a different person, look up their real userId instead.
+            </Alert>
+          )}
+
+          {lookedUpUserNotFound && (
+            <Alert tone="error" title={`No VOLTARAS account found for userId #${userIdNumber}`}>
+              The entered userId does not match any registered account. Ask the consumer to log in
+              (or check their registration response) and use the exact userId — preparing a
+              different userId will not show up on their dashboard.
+            </Alert>
           )}
         </CardBody>
       </Card>
@@ -341,6 +422,26 @@ export function PrepareConsumerPage() {
               icon={Hash}
               title="Start with the userId"
               description="Enter the userId of the newly registered consumer to begin preparing their account."
+            />
+          </CardBody>
+        </Card>
+      ) : lookedUpUserQuery.isLoading ? (
+        <Card>
+          <CardBody>
+            <LoadingState label={`Verifying user #${userIdNumber}…`} />
+          </CardBody>
+        </Card>
+      ) : lookedUpUserNotFound || !lookedUpUser ? (
+        <Card>
+          <CardBody>
+            <EmptyState
+              icon={Search}
+              title={`User #${userIdNumber} could not be verified`}
+              description={
+                lookedUpUserNotFound
+                  ? 'No registered account matches this userId. Enter the exact userId returned after the consumer registers or logs in — preparing a different userId will not show up on their dashboard.'
+                  : 'The account could not be verified right now. Try looking the user up again.'
+              }
             />
           </CardBody>
         </Card>
@@ -558,6 +659,14 @@ export function PrepareConsumerPage() {
                 Record and verify reading
               </Button>
 
+              {userReadings.some((r) => r.meterNumber === readingMeterNumber) && (
+                <Alert tone="warning" title="A reading already exists for this meter">
+                  User #{userIdNumber} already has a reading for {readingMeterNumber} — see the
+                  account status below. Recording the same meter and date again is rejected as a
+                  duplicate.
+                </Alert>
+              )}
+
               {createdReading && (
                 <Alert tone="success" title="Reading verified">
                   Reading #{createdReading.id} · {createdReading.meterNumber} ·{' '}
@@ -615,6 +724,14 @@ export function PrepareConsumerPage() {
                     Generate bill
                   </Button>
 
+                  {existingBill && (
+                    <Alert tone="warning" title="This user already has a bill for this period">
+                      Bill #{existingBill.id} · {existingBill.meterNumber} ·{' '}
+                      {billPeriodLabel(existingBill.billingMonth, existingBill.billingYear)} ·{' '}
+                      {formatCurrency(existingBill.totalAmount)} · {existingBill.billStatus}
+                    </Alert>
+                  )}
+
                   {createdBill && (
                     <Alert tone="success" title="Bill generated">
                       Bill #{createdBill.id} · {createdBill.meterNumber} ·{' '}
@@ -660,25 +777,53 @@ export function PrepareConsumerPage() {
                 </div>
                 <div className="rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Verified reading
+                    Verified readings
                   </dt>
                   <dd className="mt-0.5 text-navy-900">
-                    {createdReading
-                      ? `#${createdReading.id} · ${createdReading.unitsConsumed} units`
-                      : 'Not recorded in this session'}
+                    {userReadings.length > 0 ? (
+                      <ul className="space-y-1">
+                        {userReadings.map((reading) => (
+                          <li key={reading.id} className="font-mono text-xs">
+                            #{reading.id} · {reading.meterNumber} · {reading.unitsConsumed} units ·{' '}
+                            {reading.status}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      'None recorded yet'
+                    )}
                   </dd>
                 </div>
                 <div className="rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Bill
+                    Bills
                   </dt>
                   <dd className="mt-0.5 text-navy-900">
-                    {createdBill
-                      ? `#${createdBill.id} · ${formatCurrency(createdBill.totalAmount)}`
-                      : 'Not generated in this session'}
+                    {userBills.length > 0 ? (
+                      <ul className="space-y-1">
+                        {userBills.map((bill: BillSummary) => (
+                          <li key={bill.id} className="font-mono text-xs">
+                            #{bill.id} · {bill.meterNumber} ·{' '}
+                            {billPeriodLabel(bill.billingMonth, bill.billingYear)} ·{' '}
+                            {formatCurrency(bill.totalAmount)} · {bill.billStatus}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      'None generated yet'
+                    )}
                   </dd>
                 </div>
               </dl>
+              {existingBill && (
+                <Alert tone="warning" title="This user already has a bill">
+                  Bill #{existingBill.id} for {existingBill.meterNumber} ·{' '}
+                  {billPeriodLabel(existingBill.billingMonth, existingBill.billingYear)} ·{' '}
+                  {formatCurrency(existingBill.totalAmount)} · {existingBill.billStatus} already
+                  exists for user #{userIdNumber}. The consumer sees it on their bills page — do
+                  not generate a duplicate.
+                </Alert>
+              )}
               <p className="text-xs text-slate-500">
                 The consumer now sees daily usage, the bill, and can recharge their wallet and pay
                 from it.
