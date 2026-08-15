@@ -93,3 +93,18 @@ export async function verifyAdminReading(readingId: number): Promise<MeterReadin
   const { data } = await api.patch<MeterReading>(`/api/meter-readings/admin/${readingId}/verify`)
   return data
 }
+
+/**
+ * Admin: lists readings, optionally filtered by consumer userId and status.
+ * Used by the prepare-consumer flow to show which readings already exist
+ * for the looked-up user.
+ */
+export async function getAdminReadings(input?: {
+  authUserId?: number
+  status?: ReadingStatus
+}): Promise<MeterReading[]> {
+  const { data } = await api.get<MeterReading[]>('/api/meter-readings/admin', {
+    params: input,
+  })
+  return data
+}

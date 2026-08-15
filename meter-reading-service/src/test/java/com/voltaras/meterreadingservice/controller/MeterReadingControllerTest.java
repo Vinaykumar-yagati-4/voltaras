@@ -300,4 +300,21 @@ class MeterReadingControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
     }
+
+    @Test
+    @DisplayName("GET admin: authUserId query parameter is forwarded to the service")
+    void getAllReadingsForAdmin_authUserId_forwardsToService() throws Exception {
+
+        when(meterReadingService.getAllReadingsForAdmin("ADMIN", 66L, null))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/meter-readings/admin")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .param("authUserId", "66"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        verify(meterReadingService).getAllReadingsForAdmin("ADMIN", 66L, null);
+    }
 }

@@ -591,6 +591,10 @@ public class MeterReadingController {
     public ResponseEntity<List<MeterReadingResponse>> getAllReadingsForAdmin(
             @RequestHeader("X-User-Role") String role,
             @RequestParam(
+                    name = "authUserId",
+                    required = false
+            ) Long authUserId,
+            @RequestParam(
                     name = "status",
                     required = false
             ) MeterReadingStatus status
@@ -599,6 +603,7 @@ public class MeterReadingController {
         List<MeterReadingResponse> response =
                 meterReadingService.getAllReadingsForAdmin(
                         role,
+                        authUserId,
                         status
                 );
 

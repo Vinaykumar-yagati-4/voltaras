@@ -333,10 +333,30 @@ class MeterReadingServiceImplTest {
                 .thenReturn(List.of(verified));
 
         List<MeterReadingResponse> response =
-                meterReadingService.getAllReadingsForAdmin("ADMIN", MeterReadingStatus.VERIFIED);
+                meterReadingService.getAllReadingsForAdmin("ADMIN", null, MeterReadingStatus.VERIFIED);
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getStatus()).isEqualTo(MeterReadingStatus.VERIFIED);
+    }
+
+    @Test
+    @DisplayName("Admin get all: filters by consumer when authUserId provided")
+    void getAllReadingsForAdmin_authUserFilter_returnsOwnedList() {
+
+        MeterReading owned = buildSubmittedReading();
+        MeterReading other = buildSubmittedReading();
+        other.setAuthUserId(999L);
+
+        when(meterReadingRepository
+                .findAllByAuthUserIdOrderByReadingDateDesc(CONSUMER_ID))
+                .thenReturn(List.of(owned));
+
+        List<MeterReadingResponse> response =
+                meterReadingService.getAllReadingsForAdmin(
+                        "ADMIN", CONSUMER_ID, null);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().getAuthUserId()).isEqualTo(CONSUMER_ID);
     }
 
     @Test
@@ -423,7 +443,7 @@ class MeterReadingServiceImplTest {
     void getAllReadingsForAdmin_consumerRole_throwsForbidden() {
 
         assertThatThrownBy(() ->
-                meterReadingService.getAllReadingsForAdmin("CONSUMER", null))
+                meterReadingService.getAllReadingsForAdmin("CONSUMER", null, null))
                 .isInstanceOf(ForbiddenOperationException.class)
                 .hasMessageContaining("Only ADMIN");
     }

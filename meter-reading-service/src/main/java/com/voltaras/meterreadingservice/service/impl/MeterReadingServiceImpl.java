@@ -629,6 +629,7 @@ public class MeterReadingServiceImpl implements MeterReadingService {
     @Transactional(readOnly = true)
     public List<MeterReadingResponse> getAllReadingsForAdmin(
             String role,
+            Long authUserId,
             MeterReadingStatus status
     ) {
 
@@ -636,7 +637,21 @@ public class MeterReadingServiceImpl implements MeterReadingService {
 
         List<MeterReading> readings;
 
-        if (status == null) {
+        if (authUserId != null && status != null) {
+
+            readings = meterReadingRepository
+                    .findAllByAuthUserIdOrderByReadingDateDesc(authUserId)
+                    .stream()
+                    .filter(r -> r.getStatus() == status)
+                    .toList();
+
+        } else if (authUserId != null) {
+
+            readings =
+                    meterReadingRepository
+                            .findAllByAuthUserIdOrderByReadingDateDesc(authUserId);
+
+        } else if (status == null) {
 
             readings =
                     meterReadingRepository

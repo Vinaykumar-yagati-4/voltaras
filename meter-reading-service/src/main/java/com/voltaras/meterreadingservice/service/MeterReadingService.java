@@ -64,9 +64,12 @@ public interface MeterReadingService {
             CreateAdminMeterReadingRequest request
     );
 
-    /** Admin: lists all readings, optionally filtered by status. */
+    /**
+     * Admin: lists readings, optionally filtered by consumer and status.
+     */
     List<MeterReadingResponse> getAllReadingsForAdmin(
             String role,
+            Long authUserId,
             MeterReadingStatus status
     );
 
