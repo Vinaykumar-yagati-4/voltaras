@@ -1,8 +1,8 @@
-# VOLTARAS Backend — Docker Deployment
+# VOLTARAS — Docker Deployment
 
-Containerized deployment for the complete VOLTARAS backend: MySQL, RabbitMQ,
-Eureka Server, API Gateway and all ten microservices on one shared Docker
-network.
+Containerized deployment for the complete VOLTARAS platform: MySQL, RabbitMQ,
+Eureka Server, API Gateway, all ten microservices **and the React/Vite
+frontend** on one shared Docker network.
 
 > API verification is done through **Swagger/OpenAPI** (per project policy),
 > not Postman.
@@ -29,6 +29,13 @@ network.
 | complaint-service  | `voltaras/complaint-service`   | 8087                             |
 | notification-service | `voltaras/notification-service` | 8088                           |
 | meter-management-service | `voltaras/meter-management-service` | 8089                |
+| frontend                | `voltaras/frontend`                | 5173 (nginx :80)   |
+
+The frontend is a two-stage image: `node:22-alpine` builds the Vite app with
+`npm ci && npm run build`, then `nginx:1.27-alpine` serves `dist/` with SPA
+fallback and proxies `/api/**` to the `api-gateway` container (same-origin,
+no CORS involved). It is built with `VITE_API_BASE_URL=""` so the SPA calls
+`/api/...` on its own origin.
 
 All services use Java 25 (`eclipse-temurin:25-jre`). Each Dockerfile is a
 single-stage image built from the service's pre-built JAR:
@@ -53,12 +60,17 @@ mvn -f api-gateway/pom.xml clean package -DskipTests
 cp .env.example .env
 #    → edit the sample passwords / secrets in .env
 
-# 3. Build and start the stack
+# 3. Build and start the whole stack (backend + frontend)
 docker compose up -d --build
 
 # 4. Watch health
 docker compose ps
 ```
+
+> The frontend container depends on a healthy `api-gateway`, so starting the
+> stack (`docker compose up -d`) brings up the whole platform and the app is
+> served at <http://localhost:5173>. To start only the frontend against an
+> already-running backend: `docker compose up -d frontend`.
 
 ### Building the JARs
 
@@ -156,7 +168,18 @@ registered: `API-GATEWAY`, `AUTH-SERVICE`, `USER-SERVICE`,
 Open <http://localhost:15672> (or `RABBITMQ_MGMT_PORT`), credentials from
 `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS`.
 
-### 4. API smoke test through the gateway (JWT)
+### 4. Frontend app
+
+Open <http://localhost:5173> — the production React app. Logins, dashboard,
+bills, wallet and admin flows all call `/api/**` on the same origin, which
+nginx proxies to the gateway, so everything works from a single URL.
+
+To keep using the dev server instead (hot reload), run `npm run dev` in
+`frontend/` and open the URL Vite prints (it auto-picks another port, e.g.
+5174, while the container holds 5173). The dev server calls the gateway
+directly on `http://localhost:8080`.
+
+### 5. API smoke test through the gateway (JWT)
 
 ```bash
 # Register a consumer
