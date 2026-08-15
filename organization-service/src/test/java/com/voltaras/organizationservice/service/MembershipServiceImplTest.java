@@ -1,12 +1,17 @@
 package com.voltaras.organizationservice.service;
 
+import com.voltaras.organizationservice.dto.request.CreateMembershipRequest;
 import com.voltaras.organizationservice.dto.request.UpdateMembershipRoleRequest;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.MessageResponse;
+import com.voltaras.organizationservice.entity.Organization;
 import com.voltaras.organizationservice.entity.OrganizationMembership;
 import com.voltaras.organizationservice.enums.MembershipRole;
 import com.voltaras.organizationservice.enums.MembershipStatus;
+import com.voltaras.organizationservice.enums.OrganizationStatus;
 import com.voltaras.organizationservice.exception.BadRequestException;
+import com.voltaras.organizationservice.exception.DuplicateResourceException;
+import com.voltaras.organizationservice.exception.ForbiddenOperationException;
 import com.voltaras.organizationservice.mapper.OrganizationMembershipMapper;
 import com.voltaras.organizationservice.repository.OrganizationMembershipRepository;
 import com.voltaras.organizationservice.security.OrganizationAccessHelper;
@@ -253,8 +258,156 @@ when(membershipRepository.findByIdAndOrganizationId(TARGET_MEMBERSHIP_ID, ORG_ID
     }
 
     // ------------------------------------------------------------------
+    // Admin: create membership
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Admin create: creates an ACTIVE MEMBER membership")
+    void createMembershipForAdmin_success_createsActiveMembership() {
+
+        Organization organization = buildOrganization();
+        CreateMembershipRequest request = CreateMembershipRequest.builder()
+                .authUserId(MEMBER_ID)
+                .build();
+
+        when(accessHelper.requireActiveOrganization(ORG_ID)).thenReturn(organization);
+        when(membershipRepository.findByOrganizationIdAndAuthUserId(ORG_ID, MEMBER_ID))
+                .thenReturn(Optional.empty());
+
+        OrganizationMembership saved = OrganizationMembership.builder()
+                .id(TARGET_MEMBERSHIP_ID)
+                .organization(organization)
+                .authUserId(MEMBER_ID)
+                .membershipRole(MembershipRole.MEMBER)
+                .membershipStatus(MembershipStatus.ACTIVE)
+                .build();
+
+        when(membershipRepository.save(any(OrganizationMembership.class)))
+                .thenReturn(saved);
+        when(membershipMapper.toResponse(saved)).thenReturn(MembershipResponse.builder()
+                .id(TARGET_MEMBERSHIP_ID)
+                .organizationId(ORG_ID)
+                .authUserId(MEMBER_ID)
+                .membershipRole(MembershipRole.MEMBER)
+                .membershipStatus(MembershipStatus.ACTIVE)
+                .build());
+
+        MembershipResponse response = membershipService.createMembershipForAdmin(
+                1L, "ADMIN", ORG_ID, request);
+
+        assertThat(response.getMembershipStatus()).isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(response.getMembershipRole()).isEqualTo(MembershipRole.MEMBER);
+    }
+
+    @Test
+    @DisplayName("Admin create: reactivates a suspended membership")
+    void createMembershipForAdmin_reactivatesSuspendedMembership() {
+
+        Organization organization = buildOrganization();
+        CreateMembershipRequest request = CreateMembershipRequest.builder()
+                .authUserId(MEMBER_ID)
+                .membershipRole(MembershipRole.MANAGER)
+                .build();
+
+        OrganizationMembership suspended = OrganizationMembership.builder()
+                .id(TARGET_MEMBERSHIP_ID)
+                .organization(organization)
+                .authUserId(MEMBER_ID)
+                .membershipRole(MembershipRole.MEMBER)
+                .membershipStatus(MembershipStatus.SUSPENDED)
+                .build();
+
+        when(accessHelper.requireActiveOrganization(ORG_ID)).thenReturn(organization);
+        when(membershipRepository.findByOrganizationIdAndAuthUserId(ORG_ID, MEMBER_ID))
+                .thenReturn(Optional.of(suspended));
+        when(membershipRepository.save(suspended)).thenReturn(suspended);
+        when(membershipMapper.toResponse(suspended)).thenReturn(MembershipResponse.builder()
+                .id(TARGET_MEMBERSHIP_ID)
+                .membershipStatus(MembershipStatus.ACTIVE)
+                .membershipRole(MembershipRole.MANAGER)
+                .build());
+
+        MembershipResponse response = membershipService.createMembershipForAdmin(
+                1L, "ADMIN", ORG_ID, request);
+
+        assertThat(response.getMembershipStatus()).isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(response.getMembershipRole()).isEqualTo(MembershipRole.MANAGER);
+    }
+
+    @Test
+    @DisplayName("Admin create: requires a system ADMIN role")
+    void createMembershipForAdmin_nonAdmin_throwsForbidden() {
+
+        CreateMembershipRequest request = CreateMembershipRequest.builder()
+                .authUserId(MEMBER_ID)
+                .build();
+
+        doThrow(new ForbiddenOperationException("Only system ADMIN users can perform this operation"))
+                .when(accessHelper).requireSystemAdmin("CONSUMER");
+
+        assertThatThrownBy(() -> membershipService.createMembershipForAdmin(
+                1L, "CONSUMER", ORG_ID, request))
+                .isInstanceOf(ForbiddenOperationException.class);
+
+        verify(membershipRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Admin create: already-active membership is rejected")
+    void createMembershipForAdmin_alreadyActive_throwsDuplicate() {
+
+        Organization organization = buildOrganization();
+        CreateMembershipRequest request = CreateMembershipRequest.builder()
+                .authUserId(MEMBER_ID)
+                .build();
+
+        OrganizationMembership active = buildMembership(
+                TARGET_MEMBERSHIP_ID, MembershipRole.MEMBER);
+
+        when(accessHelper.requireActiveOrganization(ORG_ID)).thenReturn(organization);
+        when(membershipRepository.findByOrganizationIdAndAuthUserId(ORG_ID, MEMBER_ID))
+                .thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> membershipService.createMembershipForAdmin(
+                1L, "ADMIN", ORG_ID, request))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("Membership already exists");
+
+        verify(membershipRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Admin create: OWNER role cannot be assigned directly")
+    void createMembershipForAdmin_ownerRole_throwsBadRequest() {
+
+        Organization organization = buildOrganization();
+        CreateMembershipRequest request = CreateMembershipRequest.builder()
+                .authUserId(MEMBER_ID)
+                .membershipRole(MembershipRole.OWNER)
+                .build();
+
+        when(accessHelper.requireActiveOrganization(ORG_ID)).thenReturn(organization);
+
+        assertThatThrownBy(() -> membershipService.createMembershipForAdmin(
+                1L, "ADMIN", ORG_ID, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("MEMBER or MANAGER");
+
+        verify(membershipRepository, never()).save(any());
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    private Organization buildOrganization() {
+        return Organization.builder()
+                .id(ORG_ID)
+                .name("Voltaras Demo Society")
+                .organizationCode("VOLTARAS_DEMO")
+                .status(OrganizationStatus.ACTIVE)
+                .build();
+    }
 
     private OrganizationMembership buildMembership(Long id, MembershipRole role) {
         return OrganizationMembership.builder()

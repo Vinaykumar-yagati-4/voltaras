@@ -2,6 +2,7 @@ package com.voltaras.organizationservice.service.impl;
 
 import com.voltaras.organizationservice.dto.request.CreateOrganizationRequest;
 import com.voltaras.organizationservice.dto.request.UpdateOrganizationRequest;
+import com.voltaras.organizationservice.dto.response.AvailableOrganizationResponse;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
 import com.voltaras.organizationservice.entity.Organization;
@@ -93,6 +94,19 @@ public class OrganizationServiceImpl implements OrganizationService {
                         authUserId, MembershipStatus.ACTIVE)
                 .stream()
                 .map(membershipMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AvailableOrganizationResponse> getAvailableOrganizations(Long authUserId) {
+
+        accessHelper.requireAuthenticatedUser(authUserId);
+
+        return organizationRepository
+                .findAllByStatusOrderByCreatedAtDesc(OrganizationStatus.ACTIVE)
+                .stream()
+                .map(organizationMapper::toAvailableResponse)
                 .toList();
     }
 

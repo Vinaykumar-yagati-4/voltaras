@@ -1,5 +1,6 @@
 package com.voltaras.organizationservice.service;
 
+import com.voltaras.organizationservice.dto.request.CreateMembershipRequest;
 import com.voltaras.organizationservice.dto.request.UpdateMembershipRoleRequest;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.MessageResponse;
@@ -29,6 +30,15 @@ public interface MembershipService {
     MembershipResponse updateMembershipRole(
             Long requesterUserId, Long organizationId, Long membershipId,
             UpdateMembershipRoleRequest request);
+
+    /**
+     * System ADMIN: creates a new ACTIVE membership for a user, or
+     * reactivates a previously suspended/removed membership. Only MEMBER
+     * and MANAGER roles may be assigned.
+     */
+    MembershipResponse createMembershipForAdmin(
+            Long adminUserId, String systemRole, Long organizationId,
+            CreateMembershipRequest request);
 
     /**
      * Suspends an ACTIVE member (status -> SUSPENDED). Allowed for OWNER

@@ -2,6 +2,7 @@ package com.voltaras.organizationservice.controller;
 
 import com.voltaras.organizationservice.dto.request.CreateOrganizationRequest;
 import com.voltaras.organizationservice.dto.request.UpdateOrganizationRequest;
+import com.voltaras.organizationservice.dto.response.AvailableOrganizationResponse;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
 import com.voltaras.organizationservice.service.OrganizationService;
@@ -37,6 +38,20 @@ public class OrganizationController {
 
         List<MembershipResponse> response =
                 organizationService.getMyOrganizations(authUserId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Lists ACTIVE organizations that the authenticated user can browse
+     * and request access to. Contact details are excluded.
+     */
+    @GetMapping("/available")
+    public ResponseEntity<List<AvailableOrganizationResponse>> getAvailableOrganizations(
+            @RequestHeader("X-User-Id") Long authUserId) {
+
+        List<AvailableOrganizationResponse> response =
+                organizationService.getAvailableOrganizations(authUserId);
 
         return ResponseEntity.ok(response);
     }

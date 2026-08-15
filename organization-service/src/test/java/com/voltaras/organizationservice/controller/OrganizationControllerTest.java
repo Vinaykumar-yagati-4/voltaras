@@ -1,6 +1,7 @@
 package com.voltaras.organizationservice.controller;
 
 import com.voltaras.organizationservice.config.SecurityConfig;
+import com.voltaras.organizationservice.dto.response.AvailableOrganizationResponse;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
 import com.voltaras.organizationservice.enums.MembershipRole;
@@ -90,6 +91,30 @@ class OrganizationControllerTest {
                 .andExpect(jsonPath("$.error.details[?(@.field == 'name')].message")
                         .value(org.hamcrest.Matchers.hasItem(
                                 "Organization name is required")));
+    }
+
+    @Test
+    @DisplayName("GET available: 200 OK with ACTIVE organizations")
+    void getAvailableOrganizations_returns200Ok() throws Exception {
+
+        AvailableOrganizationResponse response = AvailableOrganizationResponse.builder()
+                .id(1L)
+                .name("Voltaras Demo Society")
+                .organizationCode("VOLTARAS_DEMO")
+                .organizationType(OrganizationType.APARTMENT)
+                .city("Hyderabad")
+                .build();
+
+        when(organizationService.getAvailableOrganizations(100L))
+                .thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/organizations/available")
+                        .header("X-User-Id", "100")
+                        .header("X-User-Role", "CONSUMER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].organizationCode").value("VOLTARAS_DEMO"))
+                .andExpect(jsonPath("$[0].email").doesNotExist());
     }
 
     @Test

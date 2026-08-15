@@ -1,8 +1,12 @@
 package com.voltaras.organizationservice.controller;
 
 import com.voltaras.organizationservice.config.SecurityConfig;
+import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
+import com.voltaras.organizationservice.enums.MembershipRole;
+import com.voltaras.organizationservice.enums.MembershipStatus;
 import com.voltaras.organizationservice.enums.OrganizationStatus;
+import com.voltaras.organizationservice.service.MembershipService;
 import com.voltaras.organizationservice.service.OrganizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +42,9 @@ class OrganizationAdminControllerTest {
 
     @MockitoBean
     private OrganizationService organizationService;
+
+    @MockitoBean
+    private MembershipService membershipService;
 
     @Test
     @DisplayName("GET admin list: 200 OK with paginated list")
@@ -113,6 +121,53 @@ class OrganizationAdminControllerTest {
                         .header("X-User-Role", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUSPENDED"));
+    }
+
+    @Test
+    @DisplayName("POST members: 201 Created with ACTIVE membership")
+    void createMembershipForAdmin_returns201Created() throws Exception {
+
+        MembershipResponse response = MembershipResponse.builder()
+                .id(10L)
+                .organizationId(1L)
+                .authUserId(100L)
+                .membershipRole(MembershipRole.MEMBER)
+                .membershipStatus(MembershipStatus.ACTIVE)
+                .build();
+
+        when(membershipService.createMembershipForAdmin(
+                eq(1L), eq("ADMIN"), eq(1L), any()
+        )).thenReturn(response);
+
+        mockMvc.perform(post("/api/admin/organizations/1/members")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "authUserId": 100
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.authUserId").value(100))
+                .andExpect(jsonPath("$.membershipStatus").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("POST members: missing authUserId fails validation with 400")
+    void createMembershipForAdmin_missingAuthUserId_returns400() throws Exception {
+
+        mockMvc.perform(post("/api/admin/organizations/1/members")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "membershipRole": "MEMBER"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
 
     @Test

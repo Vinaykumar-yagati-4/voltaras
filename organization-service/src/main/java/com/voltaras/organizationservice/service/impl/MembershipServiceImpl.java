@@ -1,12 +1,15 @@
 package com.voltaras.organizationservice.service.impl;
 
+import com.voltaras.organizationservice.dto.request.CreateMembershipRequest;
 import com.voltaras.organizationservice.dto.request.UpdateMembershipRoleRequest;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.MessageResponse;
+import com.voltaras.organizationservice.entity.Organization;
 import com.voltaras.organizationservice.entity.OrganizationMembership;
 import com.voltaras.organizationservice.enums.MembershipRole;
 import com.voltaras.organizationservice.enums.MembershipStatus;
 import com.voltaras.organizationservice.exception.BadRequestException;
+import com.voltaras.organizationservice.exception.DuplicateResourceException;
 import com.voltaras.organizationservice.exception.ResourceNotFoundException;
 import com.voltaras.organizationservice.mapper.OrganizationMembershipMapper;
 import com.voltaras.organizationservice.repository.OrganizationMembershipRepository;
@@ -18,6 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 /**
  * Implements membership management rules: role changes, suspension and
@@ -45,6 +50,96 @@ public class MembershipServiceImpl implements MembershipService {
         return membershipRepository
                 .findAllByOrganizationIdOrderByCreatedAtDesc(organizationId, pageable)
                 .map(membershipMapper::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public MembershipResponse createMembershipForAdmin(
+            Long adminUserId, String systemRole, Long organizationId,
+            CreateMembershipRequest request) {
+
+        accessHelper.requireSystemAdmin(systemRole);
+
+        Organization organization =
+                accessHelper.requireActiveOrganization(organizationId);
+
+        Long authUserId = request.getAuthUserId();
+
+        MembershipRole requestedRole =
+                request.getMembershipRole() == null
+                        ? MembershipRole.MEMBER
+                        : request.getMembershipRole();
+
+        validateAdminAssignedRole(requestedRole);
+
+        OrganizationMembership existing =
+                membershipRepository
+                        .findByOrganizationIdAndAuthUserId(
+                                organizationId,
+                                authUserId
+                        )
+                        .orElse(null);
+
+        if (existing != null
+                && existing.getMembershipStatus()
+                == MembershipStatus.ACTIVE) {
+
+            log.warn(
+                    "Membership creation rejected: user {} is already an active member of organization {}",
+                    authUserId,
+                    organizationId
+            );
+
+            throw new DuplicateResourceException(
+                    "Membership",
+                    "organizationId, authUserId",
+                    organizationId + ", " + authUserId
+            );
+        }
+
+        if (existing != null) {
+
+            // Reactivate a previously suspended or removed membership.
+            existing.setMembershipStatus(MembershipStatus.ACTIVE);
+            existing.setMembershipRole(requestedRole);
+            existing.setJoinedAt(LocalDateTime.now());
+
+            OrganizationMembership reactivated =
+                    membershipRepository.save(existing);
+
+            log.info(
+                    "Membership reactivated by system admin: membershipId={}, organizationId={}, authUserId={}, role={}, by={}",
+                    reactivated.getId(),
+                    organizationId,
+                    authUserId,
+                    requestedRole,
+                    adminUserId
+            );
+
+            return membershipMapper.toResponse(reactivated);
+        }
+
+        OrganizationMembership membership =
+                OrganizationMembership.builder()
+                        .organization(organization)
+                        .authUserId(authUserId)
+                        .membershipRole(requestedRole)
+                        .membershipStatus(MembershipStatus.ACTIVE)
+                        .build();
+
+        OrganizationMembership saved =
+                membershipRepository.save(membership);
+
+        log.info(
+                "Membership created by system admin: membershipId={}, organizationId={}, authUserId={}, role={}, by={}",
+                saved.getId(),
+                organizationId,
+                authUserId,
+                requestedRole,
+                adminUserId
+        );
+
+        return membershipMapper.toResponse(saved);
     }
 
     @Override
@@ -158,6 +253,22 @@ public class MembershipServiceImpl implements MembershipService {
     // ------------------------------------------------------------------
     // Private helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Only MEMBER and MANAGER roles can be assigned by a system ADMIN
+     * directly; OWNER and ORGANIZATION_ADMIN are reserved for the
+     * organization workflow.
+     */
+    private void validateAdminAssignedRole(MembershipRole role) {
+
+        if (role == MembershipRole.OWNER
+                || role == MembershipRole.ORGANIZATION_ADMIN) {
+
+            throw new BadRequestException(
+                    "System admins can only assign MEMBER or MANAGER roles"
+            );
+        }
+    }
 
     private OrganizationMembership findMembership(Long membershipId, Long organizationId) {
 
