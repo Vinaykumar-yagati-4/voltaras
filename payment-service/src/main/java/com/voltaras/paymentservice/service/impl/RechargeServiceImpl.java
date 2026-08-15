@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.voltaras.paymentservice.client.OrganizationServiceClient;
 import com.voltaras.paymentservice.dto.request.CreateRechargeOrderRequest;
+import com.voltaras.paymentservice.enums.Currency;
 import com.voltaras.paymentservice.dto.response.RechargeOrderResponse;
 import com.voltaras.paymentservice.dto.response.RechargeTransactionResponse;
 import com.voltaras.paymentservice.entity.RechargeTransaction;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Implementation of {@link RechargeService}.
@@ -378,6 +380,62 @@ public class RechargeServiceImpl implements RechargeService {
 
         log.info("Recharge order {} authorized, awaiting capture",
                 recharge.getOrderId());
+    }
+
+    // ==================================================================
+    // Local development/test recharge
+    // ==================================================================
+
+    @Override
+    @Transactional
+    public RechargeTransactionResponse recordLocalRecharge(
+            Long authUserId, String systemRole, Long organizationId,
+            BigDecimal amount) {
+
+        accessHelper.requireAuthenticatedUser(authUserId);
+
+        BigDecimal scaled = MoneyUtils.scale(amount);
+
+        if (scaled.signum() <= 0) {
+            throw new BadRequestException(
+                    "Recharge amount must be greater than zero");
+        }
+
+        // The user must exist and be active in the Auth Service.
+        userVerificationService.verifyActiveUser(authUserId, systemRole);
+
+        // Active membership in the organization is required, mirroring the
+        // Razorpay recharge path.
+        organizationServiceClient.requireOrganizationAccess(
+                organizationId, authUserId, systemRole);
+
+        String rechargeReference = referenceGenerator.generate("RCH");
+
+        RechargeTransaction recharge = RechargeTransaction.builder()
+                .rechargeReference(rechargeReference)
+                .orderId("LOCAL-" + UUID.randomUUID()
+                        .toString().replace("-", "").toUpperCase())
+                .idempotencyKey("topup-" + UUID.randomUUID())
+                .userId(authUserId)
+                .organizationId(organizationId)
+                .amount(scaled)
+                .currency(Currency.INR)
+                .paymentMethod(PaymentMethod.LOCAL)
+                .status(PaymentStatus.SUCCESS)
+                .provider(PaymentProvider.LOCAL)
+                .paidAt(LocalDateTime.now())
+                .build();
+
+        RechargeTransaction saved = rechargeRepository.save(recharge);
+
+        walletService.credit(authUserId, scaled);
+
+        log.info("Local test recharge {} ({} INR) recorded for user {}; "
+                        + "wallet credited to {}",
+                saved.getRechargeReference(), saved.getAmount(), authUserId,
+                saved.getStatus());
+
+        return rechargeMapper.toTransactionResponse(saved);
     }
 
     // ==================================================================

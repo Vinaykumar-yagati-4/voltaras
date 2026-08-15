@@ -24,5 +24,11 @@ public enum PaymentMethod {
     CARD,
 
     /** VOLTARAS wallet balance used to pay a bill. */
-    WALLET
+    WALLET,
+
+    /**
+     * Local development/testing funding: credited directly by the VOLTARAS
+     * backend (provider {@code LOCAL}) without a payment gateway.
+     */
+    LOCAL
 }
