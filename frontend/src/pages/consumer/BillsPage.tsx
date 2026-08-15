@@ -95,7 +95,7 @@ export function BillsPage() {
               title={status === 'ALL' ? 'No bills yet' : `No ${status.toLowerCase()} bills`}
               description={
                 status === 'ALL'
-                  ? 'When a bill is generated for your meter it will appear here.'
+                  ? 'Your first bill is generated once your meter is active and your first reading is verified. Complete the account setup steps on your dashboard to get started.'
                   : 'Try a different status filter.'
               }
             />

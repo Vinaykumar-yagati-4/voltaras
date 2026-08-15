@@ -99,6 +99,111 @@ export async function getMyOrganizations(): Promise<OrganizationMembership[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Consumer: browse organizations and request access
+// ---------------------------------------------------------------------------
+
+/** Lightweight view of an ACTIVE organization a consumer can request access to. */
+export interface AvailableOrganization {
+  id: number
+  name: string
+  organizationCode: string
+  organizationType: OrganizationType
+  description: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+}
+
+/** ACTIVE organizations any authenticated consumer can browse and join. */
+export async function getAvailableOrganizations(): Promise<AvailableOrganization[]> {
+  const { data } = await api.get<AvailableOrganization[]>('/api/organizations/available')
+  return data
+}
+
+export type JoinRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+export interface JoinRequest {
+  id: number
+  organizationId: number
+  organizationName: string
+  authUserId: number
+  requestedRole: MembershipRole
+  status: JoinRequestStatus
+  requestMessage: string | null
+  rejectionRemarks: string | null
+  reviewedByAuthUserId: number | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** The caller's own join requests, newest first. */
+export async function getMyJoinRequests(): Promise<JoinRequest[]> {
+  const { data } = await api.get<JoinRequest[]>('/api/organizations/join-requests/me')
+  return data
+}
+
+/** Submits a join request for an organization (defaults to MEMBER role). */
+export async function createJoinRequest(
+  organizationId: number,
+  input: { requestedRole?: MembershipRole; requestMessage?: string },
+): Promise<JoinRequest> {
+  const { data } = await api.post<JoinRequest>(
+    `/api/organizations/${organizationId}/join-requests`,
+    {
+      requestedRole: input.requestedRole ?? 'MEMBER',
+      ...(input.requestMessage ? { requestMessage: input.requestMessage } : {}),
+    },
+  )
+  return data
+}
+
+// ---------------------------------------------------------------------------
+// Admin: account preparation
+// ---------------------------------------------------------------------------
+
+/** Admin: pending (or filtered) join requests of an organization. */
+export async function getOrganizationJoinRequests(
+  organizationId: number,
+  status?: JoinRequestStatus,
+): Promise<JoinRequest[]> {
+  const { data } = await api.get<JoinRequest[]>(
+    `/api/organizations/${organizationId}/join-requests`,
+    { params: status ? { status } : {} },
+  )
+  return data
+}
+
+/** Admin (org OWNER/ORGANIZATION_ADMIN): approves a pending join request. */
+export async function approveJoinRequest(
+  organizationId: number,
+  requestId: number,
+): Promise<JoinRequest> {
+  const { data } = await api.patch<JoinRequest>(
+    `/api/organizations/${organizationId}/join-requests/${requestId}/approve`,
+  )
+  return data
+}
+
+/**
+ * System ADMIN: creates (or reactivates) an ACTIVE membership for a user
+ * in the organization. Only MEMBER and MANAGER roles may be assigned.
+ */
+export async function createOrganizationMembership(
+  organizationId: number,
+  input: { authUserId: number; membershipRole?: 'MEMBER' | 'MANAGER' },
+): Promise<OrganizationMembership> {
+  const { data } = await api.post<OrganizationMembership>(
+    `/api/admin/organizations/${organizationId}/members`,
+    {
+      authUserId: input.authUserId,
+      ...(input.membershipRole ? { membershipRole: input.membershipRole } : {}),
+    },
+  )
+  return data
+}
+
+// ---------------------------------------------------------------------------
 // Admin organization management
 // ---------------------------------------------------------------------------
 

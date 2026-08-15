@@ -70,3 +70,26 @@ export async function getUsageSummary(days = 7): Promise<DailyUsage> {
   })
   return data
 }
+
+// ---------------------------------------------------------------------------
+// Admin meter reading management
+// ---------------------------------------------------------------------------
+
+/** Admin: records a SUBMITTED reading for a consumer (account preparation). */
+export async function createAdminReading(input: {
+  authUserId: number
+  meterNumber: string
+  previousReading: number
+  currentReading: number
+  readingDate: string
+  remarks?: string
+}): Promise<MeterReading> {
+  const { data } = await api.post<MeterReading>('/api/meter-readings/admin', input)
+  return data
+}
+
+/** Admin: verifies a meter reading so it can be used for billing. */
+export async function verifyAdminReading(readingId: number): Promise<MeterReading> {
+  const { data } = await api.patch<MeterReading>(`/api/meter-readings/admin/${readingId}/verify`)
+  return data
+}

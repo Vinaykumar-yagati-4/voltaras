@@ -147,7 +147,8 @@ function RechargeCard() {
           </Button>
           {organizationId == null && !membershipsQuery.isLoading && (
             <p className="mt-2 text-xs text-slate-500">
-              Add money requires an active organization membership on your profile.
+              Add money requires an active organization membership. Follow the account setup steps
+              on your dashboard to request organization access first.
             </p>
           )}
         </div>

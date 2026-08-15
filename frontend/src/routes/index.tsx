@@ -78,6 +78,11 @@ const AdminNotificationsPage = lazy(() =>
     default: m.AdminNotificationsPage,
   })),
 )
+const PrepareConsumerPage = lazy(() =>
+  import('@/pages/admin/PrepareConsumerPage').then((m) => ({
+    default: m.PrepareConsumerPage,
+  })),
+)
 
 const consumerFallback = (
   <div className="py-10">
@@ -247,6 +252,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={consumerFallback}>
             <AdminOrganizationDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'prepare-consumer',
+        element: (
+          <Suspense fallback={consumerFallback}>
+            <PrepareConsumerPage />
           </Suspense>
         ),
       },
