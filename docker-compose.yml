@@ -111,6 +111,34 @@ services:
       start_period: 60s
 
   # ----------------------------------------------------------
+  # Frontend (production build served by nginx)
+  # ----------------------------------------------------------
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Same-origin API calls: the SPA requests /api/... on its own origin
+        # and nginx proxies them to the api-gateway container.
+        VITE_API_BASE_URL: ""
+    image: voltaras/frontend:latest
+    container_name: voltaras-frontend
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    networks:
+      - voltaras-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # ----------------------------------------------------------
   # VOLTARAS microservices
   # ----------------------------------------------------------
 
