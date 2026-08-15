@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.controller;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.response.MeterReadingResponse;
 import com.voltaras.meterreadingservice.enums.MeterReadingStatus;
@@ -167,6 +168,66 @@ class MeterReadingControllerTest {
     // ------------------------------------------------------------------
     // Admin endpoints
     // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("POST admin: 201 Created with reading recorded for the consumer")
+    void createReadingForAdmin_returns201Created() throws Exception {
+
+        MeterReadingResponse response = MeterReadingResponse.builder()
+                .id(1L)
+                .authUserId(100L)
+                .meterNumber("MTR-001")
+                .billingMonth(7)
+                .billingYear(2026)
+                .previousReading(new BigDecimal("900.000"))
+                .currentReading(new BigDecimal("1000.000"))
+                .unitsConsumed(new BigDecimal("100.000"))
+                .readingDate(LocalDate.of(2026, 7, 31))
+                .status(MeterReadingStatus.SUBMITTED)
+                .build();
+
+        when(meterReadingService.createReadingForAdmin(
+                eq(1L), eq("ADMIN"), any(CreateAdminMeterReadingRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/meter-readings/admin")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authUserId": 100,
+                                  "meterNumber": "MTR-001",
+                                  "previousReading": 900.000,
+                                  "currentReading": 1000.000,
+                                  "readingDate": "2026-07-31"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.authUserId").value(100))
+                .andExpect(jsonPath("$.status").value("SUBMITTED"));
+    }
+
+    @Test
+    @DisplayName("POST admin: missing authUserId fails validation with 400")
+    void createReadingForAdmin_missingAuthUserId_returns400() throws Exception {
+
+        mockMvc.perform(post("/api/meter-readings/admin")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "meterNumber": "MTR-001",
+                                  "previousReading": 900,
+                                  "currentReading": 1000,
+                                  "readingDate": "2026-07-31"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
 
     @Test
     @DisplayName("PATCH admin verify: 200 OK")
