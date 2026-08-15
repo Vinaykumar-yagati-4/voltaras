@@ -2,6 +2,7 @@ package com.voltaras.organizationservice.service;
 
 import com.voltaras.organizationservice.dto.request.CreateOrganizationRequest;
 import com.voltaras.organizationservice.dto.request.UpdateOrganizationRequest;
+import com.voltaras.organizationservice.dto.response.AvailableOrganizationResponse;
 import com.voltaras.organizationservice.dto.response.MembershipResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
 import com.voltaras.organizationservice.enums.OrganizationStatus;
@@ -32,6 +33,12 @@ public interface OrganizationService {
      * including the membership role and status.
      */
     List<MembershipResponse> getMyOrganizations(Long authUserId);
+
+    /**
+     * Returns ACTIVE organizations any authenticated user can browse and
+     * request access to. Contact details are excluded.
+     */
+    List<AvailableOrganizationResponse> getAvailableOrganizations(Long authUserId);
 
     /**
      * Views an organization. Allowed for ACTIVE members and system ADMIN.

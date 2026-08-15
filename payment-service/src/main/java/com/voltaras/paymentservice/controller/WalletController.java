@@ -1,6 +1,8 @@
 package com.voltaras.paymentservice.controller;
 
 import com.voltaras.paymentservice.dto.response.WalletResponse;
+import com.voltaras.paymentservice.exception.BadRequestException;
+import com.voltaras.paymentservice.service.RechargeService;
 import com.voltaras.paymentservice.service.WalletService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 
@@ -35,6 +36,7 @@ import java.math.BigDecimal;
 public class WalletController {
 
     private final WalletService walletService;
+    private final RechargeService rechargeService;
 
     @GetMapping("/me")
     @Operation(
@@ -66,7 +68,17 @@ public class WalletController {
     @ResponseStatus(HttpStatus.OK)
     @Operation(
             summary = "Top up my wallet for local testing",
-            description = "Adds money to the authenticated user's wallet for Swagger/local testing."
+            description = """
+                    Adds money to the authenticated user's wallet for
+                    Swagger/local testing. No payment gateway is involved.
+
+                    When an organizationId is provided, a local recharge
+                    transaction (provider LOCAL, status SUCCESS) is persisted
+                    so the recharge history reflects the credit; the caller
+                    must be an active member of that organization. Without an
+                    organizationId the wallet is credited without a recharge
+                    record.
+                    """
     )
     public ResponseEntity<WalletResponse> topUpWalletForTesting(
             @Parameter(description = "Authenticated user ID injected by the API Gateway", example = "4")
@@ -80,14 +92,19 @@ public class WalletController {
 
         if (request == null || request.amount() == null
                 || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Top-up amount must be greater than 0"
-            );
+            throw new BadRequestException(
+                    "Top-up amount must be greater than 0");
         }
 
         walletService.getMyWallet(authUserId, systemRole);
-        walletService.credit(authUserId, request.amount());
+
+        if (request.organizationId() != null) {
+            rechargeService.recordLocalRecharge(
+                    authUserId, systemRole,
+                    request.organizationId(), request.amount());
+        } else {
+            walletService.credit(authUserId, request.amount());
+        }
 
         WalletResponse response = walletService.getMyWallet(authUserId, systemRole);
 
@@ -96,7 +113,15 @@ public class WalletController {
 
     public record WalletTopUpRequest(
             @Schema(example = "500.00")
-            BigDecimal amount
+            BigDecimal amount,
+
+            @Schema(
+                    description = "Organization the user must actively belong to; "
+                            + "when provided the top-up is also persisted as a "
+                            + "local recharge transaction",
+                    example = "6"
+            )
+            Long organizationId
     ) {
     }
 }

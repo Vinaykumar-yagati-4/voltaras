@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.controller;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
@@ -447,6 +448,88 @@ public class MeterReadingController {
                         "Meter reading deleted successfully"
                 )
         );
+    }
+
+    @Operation(
+            summary = "Record a meter reading for a consumer (Admin)",
+            description = """
+                    Records a new SUBMITTED meter reading on behalf of the
+                    consumer identified by authUserId in the request body.
+
+                    The authenticated Admin ID is recorded for the audit
+                    trail. The reading must still be verified through the
+                    standard verify endpoint before it can be billed.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Meter reading recorded successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = MeterReadingResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid meter reading data",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Admin role is required",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Duplicate meter reading for the same meter and reading date",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PostMapping("/admin")
+    public ResponseEntity<MeterReadingResponse> createReadingForAdmin(
+            @RequestHeader("X-User-Id") Long adminUserId,
+            @RequestHeader("X-User-Role") String role,
+            @Valid @RequestBody CreateAdminMeterReadingRequest request
+    ) {
+
+        MeterReadingResponse response =
+                meterReadingService.createReadingForAdmin(
+                        adminUserId,
+                        role,
+                        request
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @Operation(

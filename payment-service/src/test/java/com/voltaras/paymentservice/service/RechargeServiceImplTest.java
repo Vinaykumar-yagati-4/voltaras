@@ -576,6 +576,111 @@ class RechargeServiceImplTest {
     }
 
     // ==================================================================
+    // Local development/test recharge
+    // ==================================================================
+
+    @Test
+    @DisplayName("Local recharge: credits the wallet and persists a SUCCESS LOCAL transaction")
+    void recordLocalRecharge_success() {
+
+        when(referenceGenerator.generate("RCH"))
+                .thenReturn("RCH-LOCAL1");
+        when(rechargeRepository.save(any(RechargeTransaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(rechargeMapper.toTransactionResponse(any(RechargeTransaction.class)))
+                .thenReturn(RechargeTransactionResponse.builder()
+                        .id(7L)
+                        .rechargeReference("RCH-LOCAL1")
+                        .status(PaymentStatus.SUCCESS)
+                        .provider(PaymentProvider.LOCAL)
+                        .build());
+
+        RechargeTransactionResponse response = rechargeService
+                .recordLocalRecharge(USER_ID, "CONSUMER", ORG_ID,
+                        new BigDecimal("100.00"));
+
+        assertThat(response.getId()).isEqualTo(7L);
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(response.getProvider()).isEqualTo(PaymentProvider.LOCAL);
+
+        // The user is verified and the organization membership checked.
+        verify(userVerificationService)
+                .verifyActiveUser(USER_ID, "CONSUMER");
+        verify(organizationServiceClient)
+                .requireOrganizationAccess(ORG_ID, USER_ID, "CONSUMER");
+
+        // A single persisted transaction is written and the wallet credited.
+        ArgumentCaptor<RechargeTransaction> saved =
+                ArgumentCaptor.forClass(RechargeTransaction.class);
+        verify(rechargeRepository).save(saved.capture());
+
+        RechargeTransaction tx = saved.getValue();
+        assertThat(tx.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(tx.getProvider()).isEqualTo(PaymentProvider.LOCAL);
+        assertThat(tx.getPaymentMethod()).isEqualTo(PaymentMethod.LOCAL);
+        assertThat(tx.getCurrency()).isEqualTo(Currency.INR);
+        assertThat(tx.getAmount()).isEqualByComparingTo("100.00");
+        assertThat(tx.getOrganizationId()).isEqualTo(ORG_ID);
+        assertThat(tx.getUserId()).isEqualTo(USER_ID);
+        assertThat(tx.getOrderId()).startsWith("LOCAL-");
+        assertThat(tx.getIdempotencyKey()).startsWith("topup-");
+        assertThat(tx.getPaidAt()).isNotNull();
+
+        verify(walletService).credit(USER_ID, new BigDecimal("100.00"));
+    }
+
+    @Test
+    @DisplayName("Local recharge: zero amount is rejected")
+    void recordLocalRecharge_zeroAmount_throws() {
+
+        assertThatThrownBy(() -> rechargeService
+                .recordLocalRecharge(USER_ID, "CONSUMER", ORG_ID,
+                        new BigDecimal("0.00")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("greater than zero");
+
+        verify(rechargeRepository, never()).save(any(RechargeTransaction.class));
+        verify(walletService, never()).credit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Local recharge: inactive auth user is rejected without credit")
+    void recordLocalRecharge_inactiveUser_throws() {
+
+        doThrow(new InactiveUserException(USER_ID))
+                .when(userVerificationService)
+                .verifyActiveUser(USER_ID, "CONSUMER");
+
+        assertThatThrownBy(() -> rechargeService
+                .recordLocalRecharge(USER_ID, "CONSUMER", ORG_ID,
+                        new BigDecimal("100.00")))
+                .isInstanceOf(InactiveUserException.class);
+
+        verify(organizationServiceClient, never())
+                .requireOrganizationAccess(any(), any(), any());
+        verify(rechargeRepository, never()).save(any(RechargeTransaction.class));
+        verify(walletService, never()).credit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Local recharge: forbidden organization access is rejected without credit")
+    void recordLocalRecharge_forbiddenOrganization_throws() {
+
+        doThrow(new ForbiddenOperationException(
+                "You are not an active member of this organization"))
+                .when(organizationServiceClient)
+                .requireOrganizationAccess(ORG_ID, USER_ID, "CONSUMER");
+
+        assertThatThrownBy(() -> rechargeService
+                .recordLocalRecharge(USER_ID, "CONSUMER", ORG_ID,
+                        new BigDecimal("100.00")))
+                .isInstanceOf(ForbiddenOperationException.class);
+
+        verify(rechargeRepository, never()).save(any(RechargeTransaction.class));
+        verify(walletService, never()).credit(any(), any());
+    }
+
+    // ==================================================================
     // Helpers
     // ==================================================================
 

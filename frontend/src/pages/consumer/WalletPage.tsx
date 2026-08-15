@@ -1,14 +1,20 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, Wallet as WalletIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, PlusCircle, Wallet as WalletIcon } from 'lucide-react'
+import { Alert } from '@/components/ui/Alert'
 import { Badge, statusTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { LoadingState } from '@/components/ui/LoadingState'
+import { getMyOrganizations } from '@/services/organizations'
 import { getMyPayments, getMyRecharges, type Payment, type RechargeTransaction } from '@/services/payments'
-import { getMyWallet } from '@/services/wallet'
+import { getMyWallet, topUpWallet } from '@/services/wallet'
 import { formatCurrency, formatDateTime } from '@/utils/format'
+
+const RECHARGE_PRESETS = [100, 200, 500]
 
 function RechargeRow({ recharge }: { recharge: RechargeTransaction }) {
   return (
@@ -46,6 +52,108 @@ function PaymentRow({ payment }: { payment: Payment }) {
         </div>
       </Link>
     </li>
+  )
+}
+
+function RechargeCard() {
+  const queryClient = useQueryClient()
+  const [amount, setAmount] = useState(100)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const membershipsQuery = useQuery({
+    queryKey: ['organizations'],
+    queryFn: getMyOrganizations,
+  })
+
+  const organizationId = membershipsQuery.data?.find(
+    (m) => m.membershipStatus === 'ACTIVE',
+  )?.organizationId
+
+  const rechargeMutation = useMutation({
+    mutationFn: () => topUpWallet({ amount, organizationId }),
+    onSuccess: (wallet) => {
+      setSuccessMessage(
+        `Added ${formatCurrency(amount)} to your wallet. New balance: ${formatCurrency(wallet.balance)}`,
+      )
+      void queryClient.invalidateQueries({ queryKey: ['wallet'] })
+      void queryClient.invalidateQueries({ queryKey: ['recharges'] })
+      void queryClient.invalidateQueries({ queryKey: ['payments'] })
+    },
+  })
+
+  const canRecharge = organizationId != null && amount > 0
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-base font-semibold text-navy-900">Add money for local testing</h2>
+      </CardHeader>
+      <CardBody className="space-y-4">
+        <Alert tone="info">
+          This is a local development recharge — it credits your wallet directly through the
+          VOLTARAS backend without any payment gateway, and the transaction is recorded in your
+          recharge history.
+        </Alert>
+
+        {successMessage && <Alert tone="success">{successMessage}</Alert>}
+        {rechargeMutation.isError && (
+          <Alert tone="error">
+            {rechargeMutation.error instanceof Error
+              ? rechargeMutation.error.message
+              : 'The recharge could not be completed.'}
+          </Alert>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {RECHARGE_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setAmount(preset)}
+              className={`inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium transition-colors ${
+                amount === preset
+                  ? 'border-volt-600 bg-volt-50 text-volt-700'
+                  : 'border-slate-300 bg-white text-navy-800 hover:bg-slate-50'
+              }`}
+            >
+              ₹{preset}
+            </button>
+          ))}
+          <label className="flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3">
+            <span className="text-sm font-medium text-slate-500">₹</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={amount}
+              onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 0))}
+              className="w-20 text-sm font-medium text-navy-900 outline-none"
+              aria-label="Recharge amount in rupees"
+            />
+          </label>
+        </div>
+
+        <div>
+          <Button
+            loading={rechargeMutation.isPending}
+            disabled={!canRecharge || rechargeMutation.isPending}
+            onClick={() => {
+              setSuccessMessage(null)
+              rechargeMutation.mutate()
+            }}
+          >
+            <PlusCircle className="h-4 w-4" aria-hidden="true" />
+            Add {formatCurrency(amount)} to wallet
+          </Button>
+          {organizationId == null && !membershipsQuery.isLoading && (
+            <p className="mt-2 text-xs text-slate-500">
+              Add money requires an active organization membership. Follow the account setup steps
+              on your dashboard to request organization access first.
+            </p>
+          )}
+        </div>
+      </CardBody>
+    </Card>
   )
 }
 
@@ -109,6 +217,9 @@ export function WalletPage() {
           </div>
         </CardBody>
       </Card>
+
+      {/* Local test recharge */}
+      <RechargeCard />
 
       {/* Recharges */}
       <Card>

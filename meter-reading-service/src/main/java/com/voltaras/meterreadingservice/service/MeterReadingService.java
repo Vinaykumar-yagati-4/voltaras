@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.service;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
@@ -52,6 +53,16 @@ public interface MeterReadingService {
 
     /** Consumer: deletes an editable (SUBMITTED) reading owned by the caller. */
     void deleteMyReading(Long authUserId, Long readingId);
+
+    /**
+     * Admin: records a meter reading on behalf of a consumer (account
+     * preparation). The reading starts in SUBMITTED status.
+     */
+    MeterReadingResponse createReadingForAdmin(
+            Long adminUserId,
+            String role,
+            CreateAdminMeterReadingRequest request
+    );
 
     /** Admin: lists all readings, optionally filtered by status. */
     List<MeterReadingResponse> getAllReadingsForAdmin(

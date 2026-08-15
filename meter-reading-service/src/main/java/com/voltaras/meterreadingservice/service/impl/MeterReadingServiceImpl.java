@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.service.impl;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
@@ -536,6 +537,93 @@ public class MeterReadingServiceImpl implements MeterReadingService {
     // ==============================================================
     // Admin operations
     // ==============================================================
+
+    @Override
+    @Transactional
+    public MeterReadingResponse createReadingForAdmin(
+            Long adminUserId,
+            String role,
+            CreateAdminMeterReadingRequest request
+    ) {
+
+        requireAdminRole(role);
+
+        Long authUserId = request.getAuthUserId();
+
+        validateReadingValues(
+                request.getPreviousReading(),
+                request.getCurrentReading()
+        );
+
+        // One reading per consumer, meter and date.
+        if (meterReadingRepository
+                .existsByAuthUserIdAndMeterNumberAndReadingDate(
+                        authUserId,
+                        request.getMeterNumber(),
+                        request.getReadingDate()
+                )) {
+
+            log.warn(
+                    "Duplicate meter reading rejected: " +
+                            "authUserId={}, meterNumber={}, readingDate={}",
+                    authUserId,
+                    request.getMeterNumber(),
+                    request.getReadingDate()
+            );
+
+            throw new DuplicateResourceException(
+                    "MeterReading",
+                    "meterNumber, readingDate",
+                    request.getMeterNumber()
+                            + ", "
+                            + request.getReadingDate()
+            );
+        }
+
+        MeterReading reading =
+                MeterReadingMapper.toEntity(request);
+
+        // The consumer is supplied by the admin in the request body.
+        reading.setAuthUserId(authUserId);
+
+        // Month and year are derived from readingDate.
+        reading.setBillingMonth(
+                request.getReadingDate().getMonthValue()
+        );
+
+        reading.setBillingYear(
+                request.getReadingDate().getYear()
+        );
+
+        // System-controlled calculated field.
+        reading.setUnitsConsumed(
+                calculateUnitsConsumed(
+                        request.getPreviousReading(),
+                        request.getCurrentReading()
+                )
+        );
+
+        // Admin-created readings begin with SUBMITTED status so the
+        // existing verify workflow applies.
+        reading.setStatus(MeterReadingStatus.SUBMITTED);
+
+        MeterReading savedReading =
+                meterReadingRepository.save(reading);
+
+        log.info(
+                "Meter reading created by admin: readingId={}, authUserId={}, " +
+                        "adminUserId={}, meterNumber={}, unitsConsumed={}, " +
+                        "readingDate={}",
+                savedReading.getId(),
+                savedReading.getAuthUserId(),
+                adminUserId,
+                savedReading.getMeterNumber(),
+                savedReading.getUnitsConsumed(),
+                savedReading.getReadingDate()
+        );
+
+        return MeterReadingMapper.toResponse(savedReading);
+    }
 
     @Override
     @Transactional(readOnly = true)

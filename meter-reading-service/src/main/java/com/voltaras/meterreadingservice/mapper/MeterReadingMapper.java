@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.mapper;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.response.MeterReadingResponse;
@@ -20,6 +21,25 @@ public final class MeterReadingMapper {
      */
     public static MeterReading toEntity(
             SubmitMeterReadingRequest request
+    ) {
+
+        return MeterReading.builder()
+                .meterNumber(request.getMeterNumber())
+                .previousReading(request.getPreviousReading())
+                .currentReading(request.getCurrentReading())
+                .readingDate(request.getReadingDate())
+                .remarks(request.getRemarks())
+                .build();
+    }
+
+    /**
+     * Converts the admin-created reading request into a new MeterReading
+     * entity. System-controlled fields such as authUserId, billingMonth,
+     * billingYear, unitsConsumed and status are assigned in the service
+     * layer.
+     */
+    public static MeterReading toEntity(
+            CreateAdminMeterReadingRequest request
     ) {
 
         return MeterReading.builder()

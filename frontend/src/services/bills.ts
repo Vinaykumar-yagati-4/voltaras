@@ -51,6 +51,27 @@ export async function getMyOutstandingBills(): Promise<BillSummary[]> {
   return data
 }
 
+// ---------------------------------------------------------------------------
+// Admin bill management
+// ---------------------------------------------------------------------------
+
+/** Admin: generates a bill for a consumer from a verified meter reading. */
+export async function generateBill(input: {
+  authUserId: number
+  meterReadingId: number
+  meterNumber: string
+  previousReading: number
+  currentReading: number
+  billingMonth: number
+  billingYear: number
+  generatedDate?: string
+  dueDate: string
+  remarks?: string
+}): Promise<BillDetail> {
+  const { data } = await api.post<BillDetail>('/api/bills/admin', input)
+  return data
+}
+
 export function billPeriodLabel(month: number, year: number): string {
   const date = new Date(year, month - 1, 1)
   return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })

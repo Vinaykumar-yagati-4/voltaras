@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Badge, statusTone } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
+import { AccountSetupCard } from '@/components/consumer/AccountSetupCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -162,6 +163,9 @@ export function ConsumerDashboard() {
           </Badge>
         </div>
       </section>
+
+      {/* Account setup guidance for brand-new consumers */}
+      <AccountSetupCard />
 
       {/* Today's electricity usage (backend-calculated from real readings) */}
       <section aria-label="Today's electricity usage">

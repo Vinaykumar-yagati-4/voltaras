@@ -3,7 +3,7 @@ import type { PageResponse } from '@/types/api'
 
 export type PaymentStatus = 'CREATED' | 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED'
 export type TransactionType = 'RECHARGE' | 'BILL_PAYMENT' | 'REFUND'
-export type PaymentMethod = 'UPI' | 'CARD' | 'WALLET'
+export type PaymentMethod = 'UPI' | 'CARD' | 'WALLET' | 'LOCAL'
 
 export interface Payment {
   id: number
@@ -33,7 +33,7 @@ export interface RechargeTransaction {
   currency: 'INR'
   paymentMethod: PaymentMethod
   status: PaymentStatus
-  provider: 'RAZORPAY'
+  provider: 'RAZORPAY' | 'LOCAL'
   providerTransactionId: string | null
   failureCode: string | null
   failureReason: string | null

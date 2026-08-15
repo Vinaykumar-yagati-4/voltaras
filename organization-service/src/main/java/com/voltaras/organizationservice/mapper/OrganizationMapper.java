@@ -2,6 +2,7 @@ package com.voltaras.organizationservice.mapper;
 
 import com.voltaras.organizationservice.dto.request.CreateOrganizationRequest;
 import com.voltaras.organizationservice.dto.request.UpdateOrganizationRequest;
+import com.voltaras.organizationservice.dto.response.AvailableOrganizationResponse;
 import com.voltaras.organizationservice.dto.response.OrganizationResponse;
 import com.voltaras.organizationservice.entity.Organization;
 import org.mapstruct.Mapper;
@@ -25,4 +26,10 @@ public interface OrganizationMapper {
     void updateEntity(UpdateOrganizationRequest request, @MappingTarget Organization organization);
 
     OrganizationResponse toResponse(Organization organization);
+
+    /**
+     * Maps to the lightweight view used by consumers browsing organizations
+     * they can request access to. Contact details are not mapped.
+     */
+    AvailableOrganizationResponse toAvailableResponse(Organization organization);
 }

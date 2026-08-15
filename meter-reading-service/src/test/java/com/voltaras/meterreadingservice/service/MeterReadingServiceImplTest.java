@@ -1,5 +1,6 @@
 package com.voltaras.meterreadingservice.service;
 
+import com.voltaras.meterreadingservice.dto.request.CreateAdminMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.RejectMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.SubmitMeterReadingRequest;
 import com.voltaras.meterreadingservice.dto.request.UpdateMeterReadingRequest;
@@ -336,6 +337,85 @@ class MeterReadingServiceImplTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getStatus()).isEqualTo(MeterReadingStatus.VERIFIED);
+    }
+
+    @Test
+    @DisplayName("Admin create: SUBMITTED reading for the consumer in the body")
+    void createReadingForAdmin_success_recordsForConsumer() {
+
+        CreateAdminMeterReadingRequest request = CreateAdminMeterReadingRequest.builder()
+                .authUserId(CONSUMER_ID)
+                .meterNumber("MTR-001")
+                .previousReading(new BigDecimal("900.000"))
+                .currentReading(new BigDecimal("1000.000"))
+                .readingDate(LocalDate.of(2026, 7, 31))
+                .build();
+
+        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndReadingDate(
+                eq(CONSUMER_ID), eq("MTR-001"), eq(LocalDate.of(2026, 7, 31))))
+                .thenReturn(false);
+
+        when(meterReadingRepository.save(any(MeterReading.class)))
+                .thenAnswer(invocation -> {
+                    MeterReading reading = invocation.getArgument(0);
+                    reading.setId(READING_ID);
+                    return reading;
+                });
+
+        MeterReadingResponse response =
+                meterReadingService.createReadingForAdmin(ADMIN_ID, "ADMIN", request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(READING_ID);
+        assertThat(response.getAuthUserId()).isEqualTo(CONSUMER_ID);
+        assertThat(response.getBillingMonth()).isEqualTo(7);
+        assertThat(response.getBillingYear()).isEqualTo(2026);
+        assertThat(response.getUnitsConsumed()).isEqualByComparingTo("100.000");
+        assertThat(response.getStatus()).isEqualTo(MeterReadingStatus.SUBMITTED);
+    }
+
+    @Test
+    @DisplayName("Admin create: consumer role is rejected")
+    void createReadingForAdmin_consumerRole_throwsForbidden() {
+
+        CreateAdminMeterReadingRequest request = CreateAdminMeterReadingRequest.builder()
+                .authUserId(CONSUMER_ID)
+                .meterNumber("MTR-001")
+                .previousReading(new BigDecimal("900.000"))
+                .currentReading(new BigDecimal("1000.000"))
+                .readingDate(LocalDate.of(2026, 7, 31))
+                .build();
+
+        assertThatThrownBy(() ->
+                meterReadingService.createReadingForAdmin(ADMIN_ID, "CONSUMER", request))
+                .isInstanceOf(ForbiddenOperationException.class)
+                .hasMessageContaining("Only ADMIN");
+
+        verify(meterReadingRepository, never()).save(any(MeterReading.class));
+    }
+
+    @Test
+    @DisplayName("Admin create: duplicate reading for same meter and date rejected")
+    void createReadingForAdmin_duplicate_throwsDuplicateResourceException() {
+
+        CreateAdminMeterReadingRequest request = CreateAdminMeterReadingRequest.builder()
+                .authUserId(CONSUMER_ID)
+                .meterNumber("MTR-001")
+                .previousReading(new BigDecimal("900.000"))
+                .currentReading(new BigDecimal("1000.000"))
+                .readingDate(LocalDate.of(2026, 7, 31))
+                .build();
+
+        when(meterReadingRepository.existsByAuthUserIdAndMeterNumberAndReadingDate(
+                eq(CONSUMER_ID), eq("MTR-001"), eq(LocalDate.of(2026, 7, 31))))
+                .thenReturn(true);
+
+        assertThatThrownBy(() ->
+                meterReadingService.createReadingForAdmin(ADMIN_ID, "ADMIN", request))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("already exists");
+
+        verify(meterReadingRepository, never()).save(any(MeterReading.class));
     }
 
     @Test

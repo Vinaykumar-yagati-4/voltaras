@@ -68,6 +68,11 @@ spring:
               predicates:
                 - Path=/api/meter-readings/**
 
+            - id: meter-management-service
+              uri: lb://METER-MANAGEMENT-SERVICE
+              predicates:
+                - Path=/api/meters/**
+
             - id: organization-service
               uri: lb://ORGANIZATION-SERVICE
               predicates:

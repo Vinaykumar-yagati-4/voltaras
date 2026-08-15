@@ -140,7 +140,7 @@ export function ReadingsPage() {
             <EmptyState
               icon={Gauge}
               title="No meter readings recorded yet"
-              description="Submit your first daily meter reading and your last 7 days of usage will appear here."
+              description="Once your meter is activated, VOLTARAS records your daily readings and your usage will appear here. Complete the account setup steps on your dashboard to get started."
             />
           ) : (
             <>
