@@ -1,0 +1,149 @@
+# ============================================================
+# VOLTARAS CI — Phase 1 pipeline
+#
+# Validates the VOLTARAS platform on every relevant push and on
+# every pull request targeting `main`:
+#
+#   1. Backend  — matrix build/test/package of all 11 Maven
+#                 services on Java 25 (Temurin).
+#   2. Frontend — npm ci + lint + production build (Node 22).
+#   3. Docker   — validates docker-compose.yml and builds the
+#                 frontend image (runs only if backend and
+#                 frontend checks already passed).
+#
+# This workflow only validates; it never deploys and it never
+# publishes images. Deployment is a later phase.
+# ============================================================
+
+name: VOLTARAS CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  # Cancel superseded runs of the same workflow on the same ref
+  # (e.g. repeated pushes to a feature branch) to save runner time.
+  group: voltaras-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # Validation-only workflow: read the repository, write nothing.
+  contents: read
+
+jobs:
+
+  # ------------------------------------------------------------
+  # Backend — one matrix entry per Maven service
+  # ------------------------------------------------------------
+  backend:
+    name: backend (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Report every service individually instead of cancelling
+      # the remaining matrix entries on the first failure.
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - bill-service
+          - complaint-service
+          - eureka-server
+          - meter-management-service
+          - meter-reading-service
+          - notification-service
+          - organization-service
+          - payment-service
+          - user-service
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          # Cache ~/.m2 across runs so dependencies are not
+          # re-downloaded for every service on every run.
+          cache: maven
+
+      - name: Build and test ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        # clean verify = compile + run tests + package. Test configs
+        # use an in-memory H2 database with Eureka disabled, so no
+        # MySQL / RabbitMQ / Eureka infrastructure is required.
+        run: mvn --batch-mode clean verify
+
+  # ------------------------------------------------------------
+  # Frontend — lint + production build
+  # ------------------------------------------------------------
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 (LTS, matches the production image)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+  # ------------------------------------------------------------
+  # Docker validation — compose config + frontend image build
+  # ------------------------------------------------------------
+  docker-validation:
+    name: docker validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Do not waste runner time when the essential builds failed.
+    needs: [backend, frontend]
+    env:
+      # CI-only placeholder values so `docker compose config` can
+      # parse docker-compose.yml on a fresh runner (no .env file
+      # exists there). These are never used to run the stack and
+      # are not real credentials.
+      MYSQL_ROOT_PASSWORD: ci-placeholder-root-password
+      DB_PASSWORD: ci-placeholder-db-password
+      RABBITMQ_DEFAULT_PASS: ci-placeholder-rabbit-password
+      JWT_SECRET: ci-placeholder-jwt-secret-for-compose-validation-only
+      RAZORPAY_KEY_ID: ci-placeholder-key-id
+      RAZORPAY_KEY_SECRET: ci-placeholder-key-secret
+      RAZORPAY_WEBHOOK_SECRET: ci-placeholder-webhook-secret
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      - name: Build frontend Docker image
+        # The frontend image is self-contained (multi-stage
+        # node build + nginx). Backend images are intentionally
+        # not rebuilt here: their Dockerfiles COPY the JARs
+        # produced by the backend matrix job on separate runners,
+        # so rebuilding them here would duplicate the Maven work.
+        run: docker build -f frontend/Dockerfile -t voltaras/frontend:ci frontend/
