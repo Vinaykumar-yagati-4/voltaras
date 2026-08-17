@@ -4,5 +4,5 @@
 .run
 *.log
 *.iml
-src
+target
 README.md

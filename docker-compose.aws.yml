@@ -1,0 +1,149 @@
+# ============================================================
+# VOLTARAS — AWS EC2 deployment override
+#
+# Usage (EC2, from the repository root):
+#
+#   docker compose \
+#     -f docker-compose.yml \
+#     -f docker-compose.aws.yml \
+#     up -d --build
+#
+# What this override changes relative to local docker-compose.yml:
+#
+#   1. Frontend is published on host port 80 (http://<EC2-PUBLIC-IP>)
+#      instead of 5173.
+#   2. ALL internal host port mappings are removed (MySQL, RabbitMQ,
+#      Eureka, API Gateway, and every microservice). Services still
+#      reach each other over the `voltaras-net` bridge network, but
+#      nothing internal is reachable from the public internet.
+#   3. Conservative JVM memory settings (JAVA_TOOL_OPTIONS) for the
+#      small t3.small instance (2 vCPU / ~1.9 GiB RAM / 4 GiB swap).
+#   4. Docker-level memory ceilings (mem_limit) so a single runaway
+#      container cannot exhaust the host.
+#   5. Lightweight MySQL tuning (smaller InnoDB buffer pool, no
+#      performance_schema) to reduce the database's RAM footprint.
+#
+# Requires Docker Compose v2.24+ for the `!override` merge tag.
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # Infrastructure
+  # ----------------------------------------------------------
+
+  mysql:
+    # No public host port. MySQL is only reachable from within
+    # voltaras-net (services use hostname "mysql:3306").
+    ports: !override []
+    mem_limit: 512m
+    # Conservative settings for the small EC2 instance:
+    #  - 64 MiB InnoDB buffer pool (default is 128 MiB)
+    #  - performance_schema off (saves ~150-200 MiB of RAM)
+    # Well-supported mysqld flags; the demo data volume is untouched.
+    command:
+      - mysqld
+      - --innodb-buffer-pool-size=64M
+      - --performance-schema=OFF
+
+  rabbitmq:
+    # No public host ports (5672 / 15672 removed). RabbitMQ remains
+    # reachable from within voltaras-net. The management plugin stays
+    # enabled; the UI is reachable only inside the Docker network.
+    ports: !override []
+    # Memory ceiling: RabbitMQ's default footprint is ~150-250 MiB;
+    # the cap only prevents a runaway node from exhausting the host.
+    mem_limit: 384m
+
+  # ----------------------------------------------------------
+  # Service registry
+  # ----------------------------------------------------------
+
+  eureka-server:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  # ----------------------------------------------------------
+  # API Gateway
+  # ----------------------------------------------------------
+
+  api-gateway:
+    # No public host port. All browser traffic enters through the
+    # frontend nginx on :80 and is proxied to the gateway internally.
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  # ----------------------------------------------------------
+  # Frontend (public entry point)
+  # ----------------------------------------------------------
+
+  frontend:
+    # Public HTTP on port 80. The SPA and /api/** stay same-origin
+    # through nginx, so no CORS change is needed for normal browser
+    # usage from http://<EC2-PUBLIC-IP>.
+    ports: !override
+      - "80:80"
+    mem_limit: 128m
+
+  # ----------------------------------------------------------
+  # VOLTARAS microservices — identical resource policy:
+  # no public ports, conservative JVM heap, container memory ceiling
+  # ----------------------------------------------------------
+
+  auth-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  user-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  meter-reading-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  meter-management-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  bill-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  organization-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  payment-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  complaint-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
+
+  notification-service:
+    ports: !override []
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC"
