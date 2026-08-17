@@ -222,9 +222,12 @@ docker exec -e MYSQL_PWD=<DB_PASSWORD> voltaras-mysql mysql -h127.0.0.1 -uroot \
   auth_db -e "SELECT COUNT(*) FROM users WHERE email LIKE '%.demo@voltaras.local';"
 ```
 
-Swagger UIs (direct per service): `http://localhost:8081..8089/swagger-ui.html`
+Swagger UIs (direct per service): `http://localhost:8081..8089/swagger-ui/index.html`
 (auth 8081, user 8082, meter-reading 8083, bill 8084, organization 8085,
 payment 8086, complaint 8087, notification 8088, meter-management 8089).
+
+> **Unified portal:** all of these are also reachable from one page at
+> <http://localhost:5173/swagger.html> (see `docs/17_API_DOCUMENTATION_PORTAL.md`).
 
 ---
 

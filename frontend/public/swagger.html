@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="VOLTARAS API Documentation — one page to reach the Swagger / OpenAPI UI of every VOLTARAS microservice."
+    />
+    <meta name="theme-color" content="#0f2142" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>VOLTARAS API Documentation</title>
+    <style>
+      :root {
+        --navy-950: #081530;
+        --navy-900: #0f2142;
+        --navy-800: #162c57;
+        --navy-700: #1d3a70;
+        --volt-600: #1f50e0;
+        --volt-500: #2f6bf0;
+        --volt-400: #5a8ef8;
+        --slate-50: #f0f4fa;
+        --slate-100: #dce6f3;
+        --slate-300: #8dacd9;
+        --slate-500: #5b84c4;
+        --ink: #16213a;
+        --muted: #4b5a75;
+        --white: #ffffff;
+        --success: #1a7f37;
+        --success-bg: #e6f4ea;
+        --shadow-card: 0 1px 2px rgba(8, 21, 48, 0.06), 0 4px 16px rgba(8, 21, 48, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(1200px 400px at 80% -10%, rgba(47, 107, 240, 0.12), transparent 60%),
+          linear-gradient(180deg, var(--slate-50) 0%, var(--white) 40%);
+        min-height: 100vh;
+      }
+
+      /* ---------- Header ---------- */
+
+      header {
+        background: linear-gradient(135deg, var(--navy-950) 0%, var(--navy-800) 60%, var(--navy-700) 100%);
+        color: var(--white);
+        padding: 48px 24px 40px;
+        text-align: center;
+      }
+
+      header .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        font-size: 0.85rem;
+        color: var(--volt-400);
+        text-transform: uppercase;
+      }
+
+      header h1 {
+        margin: 14px 0 6px;
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      header p.subtitle {
+        margin: 0;
+        font-size: clamp(0.95rem, 2vw, 1.1rem);
+        color: var(--slate-300);
+      }
+
+      header .meta {
+        margin-top: 18px;
+        font-size: 0.85rem;
+        color: var(--slate-300);
+      }
+
+      header .meta code {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 0.85rem;
+        color: var(--volt-400);
+      }
+
+      /* ---------- Main ---------- */
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 24px 64px;
+      }
+
+      .intro {
+        max-width: 720px;
+        margin: 0 auto 28px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 18px;
+      }
+
+      /* ---------- Cards ---------- */
+
+      .card {
+        background: var(--white);
+        border: 1px solid var(--slate-100);
+        border-radius: 8px;
+        box-shadow: var(--shadow-card);
+        padding: 20px 20px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .card .top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .card h2 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--navy-900);
+        line-height: 1.3;
+      }
+
+      .badge {
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border-radius: 999px;
+        padding: 3px 10px;
+        background: var(--success-bg);
+        color: var(--success);
+        white-space: nowrap;
+      }
+
+      .card .id {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.78rem;
+        color: var(--volt-600);
+      }
+
+      .card .port {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.78rem;
+        background: var(--slate-50);
+        border: 1px solid var(--slate-100);
+        color: var(--navy-800);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+
+      .card .purpose {
+        margin: 0;
+        font-size: 0.88rem;
+        color: var(--muted);
+        line-height: 1.55;
+        flex-grow: 1;
+      }
+
+      .card .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-top: 4px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 6px;
+        padding: 8px 14px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      }
+
+      .btn-primary {
+        background: var(--volt-500);
+        color: var(--white);
+      }
+
+      .btn-primary:hover {
+        background: var(--volt-600);
+      }
+
+      .btn-secondary {
+        background: var(--white);
+        color: var(--navy-800);
+        border-color: var(--slate-300);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--volt-500);
+        color: var(--volt-600);
+      }
+
+      .btn .arrow {
+        font-size: 0.8rem;
+        opacity: 0.85;
+      }
+
+      /* ---------- Info sections ---------- */
+
+      .info {
+        margin-top: 40px;
+      }
+
+      .info h3 {
+        font-size: 1rem;
+        color: var(--navy-900);
+        margin: 0 0 10px;
+      }
+
+      .info p {
+        font-size: 0.88rem;
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 0 0 8px;
+      }
+
+      .note {
+        background: var(--slate-50);
+        border: 1px solid var(--slate-100);
+        border-left: 3px solid var(--volt-500);
+        border-radius: 8px;
+        padding: 14px 16px;
+        font-size: 0.85rem;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .note code {
+        background: var(--white);
+        border: 1px solid var(--slate-100);
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.8rem;
+        color: var(--navy-800);
+      }
+
+      footer {
+        text-align: center;
+        padding: 24px;
+        color: var(--slate-500);
+        font-size: 0.8rem;
+      }
+
+      footer a {
+        color: var(--volt-600);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      @media (max-width: 480px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        header {
+          padding: 36px 16px 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">⚡ VOLTARAS</div>
+      <h1>VOLTARAS API Documentation</h1>
+      <p class="subtitle">Swagger / OpenAPI Service Portal</p>
+      <p class="meta">
+        One page for every service — documentation is generated live by the running Spring Boot services.
+      </p>
+    </header>
+
+    <main>
+      <p class="intro">
+        Select a service to open its <strong>Swagger UI</strong> in a new tab, or view its raw
+        <strong>OpenAPI JSON</strong> specification. Each page is served by the microservice itself, so the
+        documentation always reflects the running code.
+      </p>
+
+      <div class="grid">
+        <!-- Auth Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Authentication Service</h2>
+            <span class="badge">JWT</span>
+          </div>
+          <div>
+            <span class="id">auth-service</span> &nbsp; <span class="port">8081</span>
+          </div>
+          <p class="purpose">
+            Registration, login, JWT access and refresh tokens, logout, change password and the
+            forgot/reset password flow.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8081/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8081/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- User Service -->
+        <article class="card">
+          <div class="top">
+            <h2>User Service</h2>
+            <span class="badge">Profile</span>
+          </div>
+          <div>
+            <span class="id">user-service</span> &nbsp; <span class="port">8082</span>
+          </div>
+          <p class="purpose">
+            Consumer profile management — create, read, update and delete the profile of the
+            authenticated user.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8082/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8082/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Meter Reading Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Meter Reading Service</h2>
+            <span class="badge">Readings</span>
+          </div>
+          <div>
+            <span class="id">meter-reading-service</span> &nbsp; <span class="port">8083</span>
+          </div>
+          <p class="purpose">
+            Daily electricity meter readings — submit, verify and track usage, including the daily
+            usage and consumption summary APIs.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8083/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8083/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Meter Management Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Meter Management Service</h2>
+            <span class="badge">Meters</span>
+          </div>
+          <div>
+            <span class="id">meter-management-service</span> &nbsp; <span class="port">8089</span>
+          </div>
+          <p class="purpose">
+            Meter registration, lookup and admin management — creating meters and assigning them to
+            consumers.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8089/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8089/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Bill Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Bill Service</h2>
+            <span class="badge">Billing</span>
+          </div>
+          <div>
+            <span class="id">bill-service</span> &nbsp; <span class="port">8084</span>
+          </div>
+          <p class="purpose">
+            Electricity bill generation, tariff-slab calculation, consumer bill history, outstanding
+            bills and admin bill management.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8084/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8084/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Organization Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Organization Service</h2>
+            <span class="badge">Organizations</span>
+          </div>
+          <div>
+            <span class="id">organization-service</span> &nbsp; <span class="port">8085</span>
+          </div>
+          <p class="purpose">
+            Organizations, memberships and join requests, plus the building/block/floor/unit
+            structure hierarchy and system-admin operations.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8085/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8085/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Payment Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Payment Service</h2>
+            <span class="badge">Wallet</span>
+          </div>
+          <div>
+            <span class="id">payment-service</span> &nbsp; <span class="port">8086</span>
+          </div>
+          <p class="purpose">
+            Prepaid wallet, Razorpay recharge orders and webhooks, bill payments from the wallet and
+            payment history.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8086/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8086/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Complaint Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Complaint Service</h2>
+            <span class="badge">Support</span>
+          </div>
+          <div>
+            <span class="id">complaint-service</span> &nbsp; <span class="port">8087</span>
+          </div>
+          <p class="purpose">
+            Consumer complaints, ticket lookup, comments and status history, plus the admin complaint
+            lifecycle (assign, transition status, resolve).
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8087/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8087/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+
+        <!-- Notification Service -->
+        <article class="card">
+          <div class="top">
+            <h2>Notification Service</h2>
+            <span class="badge">Notifications</span>
+          </div>
+          <div>
+            <span class="id">notification-service</span> &nbsp; <span class="port">8088</span>
+          </div>
+          <p class="purpose">
+            In-app notifications — the authenticated user's notifications, unread counts, mark-as-read
+            and the admin compose/list APIs.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="http://localhost:8088/swagger-ui/index.html" target="_blank" rel="noopener">
+              Open Swagger UI <span class="arrow">↗</span>
+            </a>
+            <a class="btn btn-secondary" href="http://localhost:8088/v3/api-docs" target="_blank" rel="noopener">
+              OpenAPI JSON
+            </a>
+          </div>
+        </article>
+      </div>
+
+      <section class="info">
+        <h3>Using the portal</h3>
+        <div class="note">
+          <p>
+            <strong>Swagger UI</strong> is served by each microservice on its own published port
+            (8081–8089), so the links above work both in Docker (<code>docker compose up -d</code>)
+            and when services run locally. No Docker-internal hostnames are used in the browser.
+          </p>
+          <p>
+            <strong>Try It Out</strong> — every Swagger page has an <em>Authorize</em> button
+            (top-right, lock icon). Paste the JWT access token returned by
+            <code>POST /api/auth/login</code> and Swagger sends it as
+            <code>Authorization: Bearer &lt;token&gt;</code>. Protected APIs then work directly from
+            the UI. All services prefer the API Gateway (<code>http://localhost:8080</code>) as the
+            request server inside Swagger, which keeps JWT validation centralized.
+          </p>
+          <p>
+            <strong>API Gateway (8080)</strong> and <strong>Eureka (8761)</strong> are infrastructure
+            components without their own REST API surface, so they are intentionally not listed here.
+            All business traffic goes through the Gateway at <code>http://localhost:8080/api/...</code>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a href="/">← Back to VOLTARAS</a>
+    </footer>
+  </body>
+</html>

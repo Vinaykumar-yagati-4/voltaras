@@ -151,17 +151,21 @@ registered: `API-GATEWAY`, `AUTH-SERVICE`, `USER-SERVICE`,
 
 ### 2. Swagger / OpenAPI (direct per service)
 
+> **Unified portal:** open <http://localhost:5173/swagger.html> to reach every
+> service's Swagger UI from one page (see `docs/17_API_DOCUMENTATION_PORTAL.md`).
+> The links below are the direct per-service URLs the portal points to.
+
 | Service | Swagger UI |
 |---|---|
-| auth-service | http://localhost:8081/swagger-ui.html |
-| user-service | http://localhost:8082/swagger-ui.html |
-| meter-reading-service | http://localhost:8083/swagger-ui.html |
-| bill-service | http://localhost:8084/swagger-ui.html |
-| organization-service | http://localhost:8085/swagger-ui.html |
-| payment-service | http://localhost:8086/swagger-ui.html |
-| complaint-service | http://localhost:8087/swagger-ui.html |
-| notification-service | http://localhost:8088/swagger-ui.html |
-| meter-management-service | http://localhost:8089/swagger-ui.html |
+| auth-service | http://localhost:8081/swagger-ui/index.html |
+| user-service | http://localhost:8082/swagger-ui/index.html |
+| meter-reading-service | http://localhost:8083/swagger-ui/index.html |
+| bill-service | http://localhost:8084/swagger-ui/index.html |
+| organization-service | http://localhost:8085/swagger-ui/index.html |
+| payment-service | http://localhost:8086/swagger-ui/index.html |
+| complaint-service | http://localhost:8087/swagger-ui/index.html |
+| notification-service | http://localhost:8088/swagger-ui/index.html |
+| meter-management-service | http://localhost:8089/swagger-ui/index.html |
 
 ### 3. RabbitMQ management UI
 
