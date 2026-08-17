@@ -10,7 +10,10 @@ frontend** on one shared Docker network.
 ## Requirements
 
 - Docker Engine (Compose v2+) — tested with Docker 29.x / Compose v5.x
-- Java 25 JDK + Maven (to build the service JARs)
+- No pre-built JARs are required: every backend Dockerfile is a multi-stage
+  build that compiles its own executable JAR with Maven inside the image.
+  A Java 25 JDK + Maven on the host is only needed for local development,
+  running the test suite, or `mvn clean verify`.
 
 ## Stack overview
 
@@ -37,33 +40,46 @@ fallback and proxies `/api/**` to the `api-gateway` container (same-origin,
 no CORS involved). It is built with `VITE_API_BASE_URL=""` so the SPA calls
 `/api/...` on its own origin.
 
-All services use Java 25 (`eclipse-temurin:25-jre`). Each Dockerfile is a
-single-stage image built from the service's pre-built JAR:
+All services use Java 25. Each backend Dockerfile is a **multi-stage build**
+(identical to the `organization-service` pattern):
 
 ```dockerfile
+# Stage 1: build — Maven compiles the executable JAR inside the image
+FROM maven:3.9-eclipse-temurin-25 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -B      # cached dependency layer
+COPY src ./src
+RUN mvn clean package -DskipTests -B  # tests are run by CI / mvn verify
+
+# Stage 2: runtime — slim JRE, non-root user
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY target/<service>.jar app.jar
+RUN groupadd -r voltaras && useradd -r -g voltaras voltaras
+COPY --from=build /app/target/<service>.jar app.jar
+USER voltaras
 EXPOSE <port>
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
+This means a **fresh Git clone can be deployed with `docker compose up -d
+--build` directly** — no `target/*.jar` files need to exist on the host first.
+Each backend directory ships a `.dockerignore` that excludes `target/` (and
+never `src/`) so the build context stays clean.
+
 ## Quick start
 
 ```bash
-# 1. Build all service JARs (the Dockerfiles copy these)
-mvn -f eureka-server/pom.xml clean package -DskipTests
-mvn -f api-gateway/pom.xml clean package -DskipTests
-# ... repeat for every service (see "Building the JARs" below)
-
-# 2. Create the environment file
+# 1. Create the environment file
 cp .env.example .env
 #    → edit the sample passwords / secrets in .env
 
-# 3. Build and start the whole stack (backend + frontend)
+# 2. Build and start the whole stack (backend + frontend)
+#    Multi-stage Dockerfiles build every service JAR internally, so no
+#    Maven step is needed on the host.
 docker compose up -d --build
 
-# 4. Watch health
+# 3. Watch health
 docker compose ps
 ```
 
@@ -72,7 +88,11 @@ docker compose ps
 > served at <http://localhost:5173>. To start only the frontend against an
 > already-running backend: `docker compose up -d frontend`.
 
-### Building the JARs
+### Building the JARs (host-side, optional)
+
+The Docker images compile their own JARs, so this is **not** required for
+`docker compose build`. Host-side Maven is only needed for local development
+or to run the test suite (CI does `mvn --batch-mode clean verify` per service):
 
 ```bash
 for s in eureka-server api-gateway auth-service user-service \
@@ -86,7 +106,7 @@ done
 
 ```bash
 docker compose config          # validate the compose file
-docker compose build           # build images (JARs must exist)
+docker compose build           # build images (JARs are built inside each image)
 docker compose up -d           # start all containers
 docker compose ps              # container status
 docker compose logs -f <svc>   # follow one service's logs
@@ -234,6 +254,18 @@ Common password for all demo users: `Voltaras@123`
 
 The seeder is safe to re-run (idempotent) and never touches the existing
 `docker.consumer.test@gmail.com` / `docker.admin.test@gmail.com` accounts.
+
+## AWS EC2 deployment
+
+For a production-style deployment on AWS EC2 (public frontend on port 80,
+no internal ports exposed, conservative memory limits for a small instance)
+use the AWS compose override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d --build
+```
+
+See `docs/18_AWS_EC2_DEPLOYMENT.md` for the full EC2 guide.
 
 ## Redis — intentionally skipped
 
