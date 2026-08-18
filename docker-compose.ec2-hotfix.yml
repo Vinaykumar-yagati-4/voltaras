@@ -1,0 +1,24 @@
+services:
+  auth-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
+      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL}
+      FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD}
+      FIRST_ADMIN_FULL_NAME: ${FIRST_ADMIN_FULL_NAME:-Voltaras Platform Admin}
+
+  payment-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
+
+  notification-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
+
+  bill-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
+
+  api-gateway:
+    environment:
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: INFO
+      LOGGING_LEVEL_COM_VOLTARAS_APIGATEWAY: WARN

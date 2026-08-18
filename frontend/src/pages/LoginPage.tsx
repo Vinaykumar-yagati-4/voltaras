@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, KeyRound, ShieldCheck, User } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -10,7 +10,6 @@ import { Card, CardBody } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/hooks/useAuth'
 import { ApiError } from '@/types/api'
-import { cn } from '@/utils/cn'
 
 const schema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -19,11 +18,6 @@ const schema = z.object({
 
 type LoginForm = z.infer<typeof schema>
 
-const DEMO_CREDENTIALS = {
-  admin: { email: 'sunny.demo@voltaras.local', label: 'Admin' },
-  consumer: { email: 'vinay.demo@voltaras.local', label: 'Consumer' },
-  password: 'Voltaras@123',
-}
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -38,18 +32,12 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(schema),
     defaultValues: { email: '', password: '' },
   })
 
-  const fillDemo = (email: string) => {
-    setValue('email', email, { shouldValidate: true })
-    setValue('password', DEMO_CREDENTIALS.password, { shouldValidate: true })
-    setServerError(null)
-  }
 
   const onSubmit = async (values: LoginForm) => {
     setServerError(null)
@@ -133,50 +121,6 @@ export function LoginPage() {
           </p>
         </CardBody>
       </Card>
-
-      {/* Local Docker demo credentials */}
-      <div className="mt-5 rounded-card border border-dashed border-volt-300 bg-volt-50/60 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-volt-600" aria-hidden="true" />
-          <p className="text-sm font-semibold text-navy-900">Local Docker demo credentials</p>
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          For the local demo stack only. Shared password for both accounts.
-        </p>
-        <div className="mt-3 space-y-2">
-          {[DEMO_CREDENTIALS.admin, DEMO_CREDENTIALS.consumer].map((account) => (
-            <div
-              key={account.label}
-              className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                {account.label === 'Admin' ? (
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-volt-600" aria-hidden="true" />
-                ) : (
-                  <User className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-navy-900">{account.label}</p>
-                  <p className="truncate text-xs text-slate-500">{account.email}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => fillDemo(account.email)}
-                className={cn(
-                  'inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-xs font-medium transition-colors',
-                  'border-volt-300 text-volt-700 hover:bg-volt-50',
-                )}
-              >
-                Use
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 font-mono text-xs text-slate-500">
-          Password: <span className="font-semibold text-navy-800">Voltaras@123</span>
-        </p>
-      </div>
     </div>
   )
 }
