@@ -1,0 +1,27 @@
+services:
+  frontend:
+    ports: !reset []
+    networks:
+      - voltaras-net
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: voltaras-caddy
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - voltaras-net
+
+volumes:
+  caddy_data:
+  caddy_config:
