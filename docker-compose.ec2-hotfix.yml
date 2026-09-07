@@ -2,9 +2,6 @@ services:
   auth-service:
     environment:
       JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
-      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL}
-      FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD}
-      FIRST_ADMIN_FULL_NAME: ${FIRST_ADMIN_FULL_NAME:-Voltaras Platform Admin}
 
   payment-service:
     environment:
@@ -15,6 +12,10 @@ services:
       JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
 
   bill-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
+
+  complaint-service:
     environment:
       JAVA_TOOL_OPTIONS: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC"
 
